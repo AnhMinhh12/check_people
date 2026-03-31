@@ -1,0 +1,37 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Cấu hình môi trường (NHẠY CẢM - KHÔNG ĐẨY LÊN GIT)
+.env
+
+# Môi trường ảo (Virtual Environments)
+venv/
+.venv/
+env/
+ENV/
+bin/
+lib/
+include/
+
+# Dữ liệu ứng dụng và nhật ký vi phạm (DỮ LIỆU CÁ NHÂN)
+sentinel.db
+violations/
+*.bak
+*.log
+
+# Model Weights (Nên tải riêng hoặc lưu ở Registry khác)
+yolov8n.pt
+
+# Cấu hình IDE (VS Code, PyCharm)
+.vscode/
+.idea/
+
+# Docker rác
+.dockerignore
+Dockerfile.save
+
+# Hệ điều hành
+.DS_Store
+Thumbs.db

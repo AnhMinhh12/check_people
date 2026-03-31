@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html class="dark" lang="vi">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Sentinel Warden | Hệ Thống Giám Sát Cao Cấp</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700&display=swap" rel="stylesheet"/>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#ffb693",
+                        "tertiary": "#00daf3",
+                        "error": "#ffb4ab",
+                        "background": "#0a0e14",
+                        "surface": "#10141a",
+                        "surface-container": "#1c2026",
+                    },
+                    fontFamily: {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Inter"],
+                    }
+                },
+            },
+        }
+    </script>
+    <style>
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400; vertical-align: middle; }
+        .hud-scanline {
+            background: linear-gradient(to bottom, transparent 50%, rgba(0, 218, 243, 0.03) 50%);
+            background-size: 100% 4px;
+            pointer-events: none;
+        }
+        .stats-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        #roi-canvas { cursor: crosshair; }
+        
+        /* Violation HUD Styles */
+        @keyframes pulse-red {
+            0% { box-shadow: inset 0 0 100px rgba(220, 38, 38, 0.1), 0 0 10px rgba(220, 38, 38, 0.1); border-color: rgba(220, 38, 38, 0.3); }
+            50% { box-shadow: inset 0 0 150px rgba(220, 38, 38, 0.4), 0 0 30px rgba(220, 38, 38, 0.3); border-color: rgba(220, 38, 38, 1); }
+            100% { box-shadow: inset 0 0 100px rgba(220, 38, 38, 0.1), 0 0 10px rgba(220, 38, 38, 0.1); border-color: rgba(220, 38, 38, 0.3); }
+        }
+
+        @keyframes slide-down {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .violation-hud {
+            display: none;
+            background: radial-gradient(circle, transparent 20%, rgba(127, 29, 29, 0.3) 100%);
+            border: 12px solid transparent;
+            animation: pulse-red 1.5s infinite ease-in-out;
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        .caution-stripes {
+            background: repeating-linear-gradient(
+                -45deg,
+                #fbbf24,
+                #fbbf24 20px,
+                #000 20px,
+                #000 40px
+            );
+            height: 12px;
+            width: 100%;
+        }
+        
+        .no-signal-overlay {
+            display: none;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%;
+            background-color: #050505;
+        }
+        
+        .no-signal-text {
+            animation: blinker 1.5s linear infinite;
+        }
+        
+        @keyframes blinker {
+            50% { opacity: 0; }
+        }
+    </style>
+</head>
+<body class="bg-background text-[#dfe2eb] font-body selection:bg-tertiary/30">
+    <!-- Sidebar -->
+    <aside class="h-screen w-64 left-0 fixed bg-surface flex flex-col py-6 border-r border-white/5 z-50">
+        <div class="px-6 mb-10">
+            <h1 class="text-xl font-extrabold text-white font-headline tracking-tighter">WARDEN AI</h1>
+            <p class="text-[10px] uppercase tracking-[0.2em] text-tertiary font-bold opacity-80">Industrial Security v3.5</p>
+        </div>
+        <nav class="flex-1 space-y-1">
+            <button onclick="showTab('dashboard')" id="nav-dashboard" class="w-full px-6 py-4 text-primary bg-surface-container border-l-4 border-primary flex items-center transition-all">
+                <span class="material-symbols-outlined mr-3 text-xl">grid_view</span>
+                <span class="text-sm font-bold tracking-tight">Bảng Điều Khiển</span>
+            </button>
+            <button onclick="showTab('history')" id="nav-history" class="w-full px-6 py-4 text-slate-500 hover:bg-surface-container/30 border-l-4 border-transparent flex items-center transition-all">
+                <span class="material-symbols-outlined mr-3 text-xl">receipt_long</span>
+                <span class="text-sm font-bold tracking-tight">Lịch Sử Vi Phạm</span>
+            </button>
+            <button onclick="showTab('config')" id="nav-config" class="w-full px-6 py-4 text-slate-500 hover:bg-surface-container/30 border-l-4 border-transparent flex items-center transition-all">
+                <span class="material-symbols-outlined mr-3 text-xl">architecture</span>
+                <span class="text-sm font-bold tracking-tight">Cấu Hình ROI</span>
+            </button>
+        </nav>
+        <div class="px-6 mt-auto">
+            <div class="p-4 bg-white/5 rounded-xl border border-white/5 mb-4">
+                <p class="text-[10px] text-slate-500 uppercase font-bold mb-1">Dung lượng ổ đĩa</p>
+                <div class="w-full bg-black h-1 rounded-full overflow-hidden">
+                    <div class="bg-primary h-full w-[12%]"></div>
+                </div>
+            </div>
+            <button class="w-full py-4 bg-red-600/10 text-red-500 border border-red-500/20 font-black text-xs tracking-widest rounded-xl hover:bg-red-600/30 transition-all uppercase">
+                DỪNG HỆ THỐNG
+            </button>
+        </div>
+    </aside>
+
+    <main class="ml-64 min-h-screen">
+        <header class="w-full sticky top-0 bg-surface/80 backdrop-blur-xl flex justify-between items-center px-10 py-6 border-b border-white/5 z-40">
+            <div class="flex items-center gap-3">
+                <span id="tab-title" class="text-xl font-black uppercase tracking-widest text-white font-headline">Bảng Điều Khiển</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-3 px-4 py-2 bg-surface-container rounded-full border border-white/5 shadow-lg">
+                    <span id="status-dot" class="relative inline-flex rounded-full h-3 w-3 bg-tertiary"></span>
+                    <span id="status-text" class="text-[10px] font-black uppercase tracking-widest text-tertiary">Hệ Thống Trực Tuyến</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- DASHBOARD TAB -->
+        <div id="tab-dashboard" class="tab-content active p-10 max-w-7xl mx-auto space-y-8">
+            <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="stats-card bg-surface p-8 border-b-4 border-tertiary rounded-2xl shadow-2xl">
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Người Trong Vùng</span>
+                    <h2 id="worker-count" class="text-6xl font-headline font-black text-white mt-1">0</h2>
+                </div>
+                <div id="status-card" class="stats-card bg-surface p-8 border-b-4 border-slate-700 rounded-2xl shadow-2xl">
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Giám Sát AI</span>
+                    <h2 id="status-display" class="text-4xl font-headline font-black text-white mt-2 uppercase italic tracking-tighter">ĐANG CHỜ</h2>
+                </div>
+                <div class="stats-card bg-surface p-8 border-b-4 border-primary rounded-2xl shadow-2xl">
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Hiệu Năng Stream</span>
+                    <h2 id="fps-display" class="text-6xl font-headline font-black text-white mt-1">0.0</h2>
+                </div>
+            </section>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                <section class="lg:col-span-8 group">
+                    <div class="relative aspect-video bg-black rounded-3xl overflow-hidden shadow-[0_35px_60px_-15px_rgba(0,0,0,0.5)] border border-white/5">
+                        <img id="video-feed" src="/video_feed" class="w-full h-full object-contain" />
+                        
+                        <!-- Lớp phủ khi mất tín hiệu -->
+                        <div id="no-signal" class="absolute inset-0 no-signal-overlay flex flex-col items-center justify-center z-20">
+                            <div class="text-red-500 mb-4 scale-150">
+                                <span class="material-symbols-outlined text-8xl">signal_disconnected</span>
+                            </div>
+                            <h2 class="text-3xl font-black font-headline text-white tracking-widest no-signal-text">MẤT TÍN HIỆU CAMERA</h2>
+                            <p class="text-slate-400 mt-2 text-xs uppercase tracking-[0.3em] font-bold">Vui lòng kiểm tra cáp mạng và nguồn cấp</p>
+                            <div class="mt-8 flex gap-2">
+                                <div class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                                <div class="w-2 h-2 bg-red-500 rounded-full animate-pulse [animation-delay:200ms]"></div>
+                                <div class="w-2 h-2 bg-red-500 rounded-full animate-pulse [animation-delay:400ms]"></div>
+                            </div>
+                        </div>
+
+                        <div class="absolute inset-0 hud-scanline pointer-events-none"></div>
+                        <div class="absolute bottom-8 right-8 bg-black/60 px-4 py-2 rounded-lg backdrop-blur-md border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span class="text-[10px] font-bold tracking-widest font-mono text-tertiary">LIVE 1080P • AI ACTIVE</span>
+                        </div>
+                    </div>
+                </section>
+                <section class="lg:col-span-4 space-y-6">
+                    <div class="bg-surface p-8 rounded-3xl border border-white/5 shadow-2xl">
+                        <h3 class="text-xs font-bold uppercase tracking-widest text-slate-500 mb-6">Tiến Độ Vi Phạm</h3>
+                        <div class="relative h-4 w-full bg-black/50 rounded-full overflow-hidden border border-white/5">
+                            <div id="time-bar" class="absolute top-0 left-0 bg-gradient-to-r from-red-500 to-red-600 h-full w-0 transition-all duration-500"></div>
+                        </div>
+                        <div class="flex justify-between mt-4">
+                            <span class="text-[10px] font-black text-slate-500">HIỆN TẠI</span>
+                            <span id="missing-time" class="text-2xl font-headline font-black text-red-500">0.0s</span>
+                            <span class="text-[10px] font-black text-slate-500">NGƯỠNG: 5S</span>
+                        </div>
+                    </div>
+                    <div class="bg-surface p-8 rounded-3xl border border-white/5 shadow-2xl">
+                        <h3 class="text-xs font-bold uppercase tracking-widest text-slate-400 flex items-center gap-3 mb-4">
+                            <span class="material-symbols-outlined text-tertiary">terminal</span>
+                            Nhật Ký Nhanh
+                        </h3>
+                        <div id="log-container" class="space-y-3 font-mono text-[11px] h-48 overflow-y-auto scrollbar-hide">
+                            <div class="text-slate-600 italic">Đang tải nhật ký...</div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <!-- HISTORY TAB -->
+        <div id="tab-history" class="tab-content p-10 max-w-7xl mx-auto">
+            <div class="bg-surface rounded-3xl border border-white/5 shadow-2xl overflow-hidden">
+                <div class="p-8 border-b border-white/5 flex justify-between items-center bg-white/2">
+                    <h3 class="text-lg font-bold font-headline uppercase tracking-widest">Lịch Sử Vi Phạm 5 Giây</h3>
+                    <button onclick="loadHistory()" class="p-3 bg-white/5 rounded-full hover:bg-white/10 transition-colors">
+                        <span class="material-symbols-outlined">refresh</span>
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead class="bg-black/20 text-[10px] uppercase tracking-widest text-slate-500 font-black">
+                            <tr>
+                                <th class="px-8 py-4">Thời Gian</th>
+                                <th class="px-8 py-4">Thời Lượng</th>
+                                <th class="px-8 py-4">Bằng Chứng (Ảnh)</th>
+                                <th class="px-8 py-4">Hành Động</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table" class="divide-y divide-white/5 text-sm">
+                            <!-- Rows will appear here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- CONFIG TAB -->
+        <div id="tab-config" class="tab-content p-10 max-w-7xl mx-auto space-y-6">
+            <div class="bg-surface p-10 rounded-3xl border border-white/5 shadow-2xl">
+                <h3 class="text-lg font-bold font-headline uppercase tracking-widest mb-4">Vẽ Vùng An Toàn Đa Giác</h3>
+                <p class="text-sm text-slate-500 mb-8 leading-relaxed">
+                    Hướng dẫn: Click chuột trái để thêm điểm. Click chuột phải để xóa điểm cuối. Nhấn "Lưu Cấu Hình" sau khi hoàn tất đa giác.
+                </p>
+                <div class="relative inline-block border-4 border-tertiary/20 rounded-2xl overflow-hidden shadow-inner">
+                    <img id="config-video-bg" src="/video_feed" class="w-full max-w-4xl block" />
+                    <canvas id="roi-canvas" class="absolute top-0 left-0 w-full h-full"></canvas>
+                </div>
+                <div class="mt-10 flex gap-4">
+                    <button onclick="saveROI()" class="px-10 py-5 bg-tertiary text-black font-black uppercase tracking-widest rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl">
+                        Lưu Cấu Hình
+                    </button>
+                    <button onclick="clearROI()" class="px-10 py-5 bg-white/5 text-white font-black uppercase tracking-widest rounded-2xl hover:bg-white/10 transition-all">
+                        Xóa Hết Điểm
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal for Evidence -->
+    <div id="image-modal" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-10" onclick="this.classList.add('hidden')">
+        <img id="modal-img" src="" class="max-w-full max-h-full rounded-2xl border-2 border-white/10 shadow-2xl" />
+        <div class="absolute top-10 right-10 text-white font-black text-xl cursor-pointer">CLOSE (X)</div>
+    </div>
+
+    <!-- VIOLATION HUD OVERLAY -->
+    <div id="violation-hud" class="fixed inset-0 violation-hud">
+        <div class="absolute top-0 left-0 caution-stripes border-b border-black/50"></div>
+        <div class="absolute bottom-0 left-0 caution-stripes border-t border-black/50"></div>
+        
+        <div class="flex flex-col items-center justify-center h-full gap-8 backdrop-blur-[1px]">
+            <div class="bg-red-600 text-white px-16 py-10 rounded-2xl shadow-[0_0_100px_rgba(220,38,38,0.6)] border-8 border-white/10 text-center animate-[slide-down_0.4s_cubic-bezier(0.34,1.56,0.64,1)]">
+                <div class="flex items-center justify-center gap-6 mb-2">
+                    <span class="material-symbols-outlined text-8xl scale-125 animate-pulse">warning</span>
+                    <h2 class="text-7xl font-black italic tracking-tighter uppercase font-headline">CẢNH BÁO</h2>
+                    <span class="material-symbols-outlined text-8xl scale-125 animate-pulse">warning</span>
+                </div>
+                <h3 class="text-2xl font-black tracking-[0.4em] opacity-90 mb-4">VI PHẠM QUY ĐỊNH AN TOÀN</h3>
+                <div class="h-1 w-full bg-white/20 mb-6"></div>
+                <p class="text-lg font-bold tracking-widest text-red-100 uppercase">Hệ thống đang tự động ghi hình bằng chứng</p>
+            </div>
+            
+            <div class="flex items-center gap-4 bg-black/80 backdrop-blur-xl px-8 py-4 rounded-full border-2 border-red-500/50 shadow-2xl">
+                <span class="relative flex h-4 w-4">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-4 w-4 bg-red-500"></span>
+                </span>
+                <span class="text-red-500 font-mono font-black text-xl tracking-[0.2em] uppercase">REC • AI MONITORING ACTIVE</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io({ transports: ['polling'] });
+        let currentTab = 'dashboard';
+        let roiPoints = [];
+        let originalRes = [640, 360];
+
+        // socket initialization
+        socket.on('stats_update', function(data) {
+            if (currentTab === 'dashboard') {
+                document.getElementById('worker-count').innerText = data.workers_in_roi;
+                document.getElementById('fps-display').innerText = data.fps;
+                document.getElementById('missing-time').innerText = data.missing_time + 's';
+                document.getElementById('time-bar').style.width = Math.min((data.missing_time / 5.0) * 100, 100) + '%';
+                
+                const display = document.getElementById('status-display');
+                const card = document.getElementById('status-card');
+                // Xử lý trạng thái kết nối Camera
+                const noSignal = document.getElementById('no-signal');
+                const headerDot = document.getElementById('status-dot');
+                const headerText = document.getElementById('status-text');
+                
+                if (data.camera_connected === false) {
+                    noSignal.style.display = 'flex';
+                    headerDot.classList.replace('bg-tertiary', 'bg-red-500');
+                    headerText.innerText = 'CẢNH BÁO: MẤT KẾT NỐI CAMERA';
+                    headerText.classList.replace('text-tertiary', 'text-red-500');
+                    // Reset FPS
+                    document.getElementById('fps-display').innerText = '0.0';
+                } else {
+                    noSignal.style.display = 'none';
+                    headerDot.classList.replace('bg-red-500', 'bg-tertiary');
+                    headerText.innerText = 'Hệ Thống Trực Tuyến';
+                    headerText.classList.replace('text-red-500', 'text-tertiary');
+                }
+
+                if (data.status === 'AN TOÀN') {
+                    display.innerText = 'AN TOÀN'; display.style.color = '#00daf3'; card.style.borderColor = '#00daf3';
+                    hud.style.display = 'none';
+                } else {
+                    display.innerText = 'VI PHẠM!'; display.style.color = '#ffb4ab'; card.style.borderColor = '#ffb4ab';
+                    if (data.status === 'CẢNH BÁO') {
+                        hud.style.display = 'block';
+                    } else {
+                        hud.style.display = 'none';
+                    }
+                }
+            }
+            originalRes = data.original_resolution;
+        });
+
+        socket.on('status_update', function(data) {
+            const entry = document.createElement('div');
+            entry.className = 'py-2 border-b border-white/5 flex gap-3 items-center';
+            entry.innerHTML = `<span class="h-2 w-2 rounded-full ${data.status === 'AN TOÀN' ? 'bg-tertiary' : 'bg-error'}"></span> <span class="text-white">${data.log}</span>`;
+            const container = document.getElementById('log-container');
+            container.prepend(entry);
+            if (container.children.length > 50) container.lastChild.remove();
+        });
+
+        socket.on('new_violation', function(data) {
+            // Tải lại lịch sử khi có vi phạm mới
+            console.log('VI PHẠM MỚI:', data.time);
+            if (currentTab === 'history') loadHistory();
+        });
+
+        socket.on('violation_update', function(data) {
+            // Cập nhật số giây nhảy trực tiếp trên dòng tương ứng
+            const cell = document.getElementById(`duration-${data.id}`);
+            if (cell) {
+                cell.innerText = data.duration + 's';
+            }
+        });
+
+        // Tab Switching
+        function showTab(tabId) {
+            currentTab = tabId;
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active');
+            
+            document.querySelectorAll('nav button').forEach(btn => {
+                btn.classList.replace('text-primary', 'text-slate-500');
+                btn.classList.replace('bg-surface-container', 'hover:bg-surface-container/30');
+                btn.classList.replace('border-primary', 'border-transparent');
+            });
+            const activeBtn = document.getElementById('nav-' + tabId);
+            activeBtn.classList.replace('text-slate-500', 'text-primary');
+            activeBtn.classList.replace('hover:bg-surface-container/30', 'bg-surface-container');
+            activeBtn.classList.replace('border-transparent', 'border-primary');
+
+            document.getElementById('tab-title').innerText = activeBtn.innerText.trim();
+
+            if (tabId === 'history') loadHistory();
+            if (tabId === 'config') initCanvas();
+        }
+
+        // History Logic
+        async function loadHistory() {
+            const table = document.getElementById('history-table');
+            table.innerHTML = '<tr><td colspan="4" class="px-8 py-10 text-center text-slate-500 italic">Đang tải dữ liệu...</td></tr>';
+            
+            try {
+                const res = await fetch('/api/history');
+                const data = await res.json();
+                
+                if (data.length === 0) {
+                    table.innerHTML = '<tr><td colspan="4" class="px-8 py-20 text-center text-slate-500 italic">Chưa ghi nhận vụ vi phạm nào trong phiên này.</td></tr>';
+                    return;
+                }
+
+                table.innerHTML = data.map(v => `
+                    <tr class="hover:bg-white/2 transition-colors border-b border-white/5">
+                        <td class="px-8 py-6 font-bold text-slate-300">${v.time}</td>
+                        <td class="px-8 py-6 text-red-400 font-black tracking-tighter" id="duration-${v.id}">${v.duration}s</td>
+                        <td class="px-8 py-6">
+                            <div class="relative w-24 h-14 group/img overflow-hidden rounded-lg ring-1 ring-white/10 hover:ring-tertiary transition-all">
+                                <img src="/violations/${v.image}" class="w-full h-full object-cover cursor-pointer" onclick="openModal('/violations/${v.image}')" />
+                                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
+                                    <span class="material-symbols-outlined text-white text-sm">zoom_in</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-8 py-6">
+                            <button class="bg-surface-container px-4 py-2 rounded-lg text-tertiary hover:bg-tertiary hover:text-black text-[10px] font-black uppercase tracking-widest transition-all" onclick="openModal('/violations/${v.image}')">
+                                CHI TIẾT
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                console.error('Lỗi loadHistory:', err);
+                table.innerHTML = '<tr><td colspan="4" class="px-8 py-10 text-center text-red-400 font-bold">Lỗi kết nối Server!</td></tr>';
+            }
+        }
+
+        function openModal(src) {
+            document.getElementById('modal-img').src = src;
+            document.getElementById('image-modal').classList.remove('hidden');
+        }
+
+        // ROI Config Logic
+        const canvas = document.getElementById('roi-canvas');
+        const ctx = canvas.getContext('2d');
+        const configImg = document.getElementById('config-video-bg');
+
+        function initCanvas() {
+            canvas.width = configImg.clientWidth;
+            canvas.height = configImg.clientHeight;
+            drawROI();
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            if (e.button === 0) { // Left click
+                 roiPoints.push([x, y]);
+            } else if (e.button === 2) { // Right click
+                 roiPoints.pop();
+            }
+            drawROI();
+        });
+
+        canvas.oncontextmenu = () => false; // Disable context menu
+
+        function drawROI() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (roiPoints.length === 0) return;
+
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#00daf3';
+            ctx.fillStyle = 'rgba(0, 218, 243, 0.2)';
+            
+            ctx.beginPath();
+            ctx.moveTo(roiPoints[0][0], roiPoints[0][1]);
+            for (let i = 1; i < roiPoints.length; i++) {
+                ctx.lineTo(roiPoints[i][0], roiPoints[i][1]);
+            }
+            if (roiPoints.length > 2) ctx.closePath();
+            ctx.stroke();
+            ctx.fill();
+
+            roiPoints.forEach((p, idx) => {
+                ctx.fillStyle = '#ffb693';
+                ctx.beginPath(); ctx.arc(p[0], p[1], 5, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = 'white'; ctx.font = '10px Arial'; ctx.fillText(idx + 1, p[0] + 8, p[1]);
+            });
+        }
+
+        function clearROI() { roiPoints = []; drawROI(); }
+
+        async function saveROI() {
+            if (roiPoints.length < 3) return alert('Vui lòng chọn ít nhất 3 điểm để tạo vùng đa giác!');
+            
+            // Map points to original resolution
+            const scaledPoints = roiPoints.map(p => [
+                Math.round(p[0] * (originalRes[0] / canvas.width)),
+                Math.round(p[1] * (originalRes[1] / canvas.height))
+            ]);
+
+            const res = await fetch('/api/config_roi', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ points: scaledPoints })
+            });
+            const result = await res.json();
+            if (result.status === 'success') {
+                alert('Đã cập nhật cấu hình ROI mới!');
+                showTab('dashboard');
+            } else {
+                alert('Lỗi: ' + result.message);
+            }
+        }
+
+        window.addEventListener('resize', initCanvas);
+
+        socket.on('connect', () => {
+            console.log('✅ Đã kết nối tới Warden Server');
+            loadHistory();
+        });
+        socket.on('disconnect', () => console.log('❌ Mất kết nối tới Warden Server'));
+
+        // Load ban đầu khi trang sẵn sàng
+        document.addEventListener('DOMContentLoaded', () => {
+            loadHistory();
+        });
+    </script>
+</body>
+</html>

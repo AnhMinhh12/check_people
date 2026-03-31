@@ -1,0 +1,27 @@
+services:
+  warden-app:
+    build: .
+    container_name: sentinel-warden
+    restart: always
+    ports:
+      - "5000:5000"
+    volumes:
+      # Gắn file cấu hình để sửa bên ngoài mà không cần build lại
+      - ./.env:/app/.env
+      - ./roi_config.json:/app/roi_config.json
+      - ./src:/app/src
+      # Gắn thư mục gốc để các tệp Model tải về sẽ hiện lên máy Local
+      - ./:/app
+      # Gắn database và thư mục ảnh vi phạm
+      - ./sentinel.db:/app/sentinel.db
+      - ./violations:/app/violations
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+      # Ép OpenCV/FFMPEG sử dụng giao thức TCP thay vì UDP để ổn định hơn trong Docker
+      - OPENCV_FFMPEG_CAPTURE_OPTIONS=rtsp_transport;tcp
+    # Tăng bộ nhớ đệm cho Container để xử lý nén/giải nén luồng Camera nặng
+    shm_size: '2gb'
+    # Cho phép truy cập phần cứng sâu hơn
+    privileged: true
+    # Chạy trên Host Network nếu cần truy cập camera trong mạng LAN phức tạp
+    # network_mode: host 

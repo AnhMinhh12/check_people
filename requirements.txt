@@ -1,0 +1,6 @@
+Flask==2.2.5
+Flask-SocketIO==5.3.4
+numpy<2.0.0
+ultralytics
+python-dotenv==1.0.0
+eventlet==0.33.3
