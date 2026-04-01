@@ -25,15 +25,15 @@ class DatabaseManager:
             ''')
             conn.commit()
 
-    def add_violation(self, reason, filename):
-        """Lưu bản ghi vi phạm mới"""
+    def add_violation(self, reason, filename, duration=5.0):
+        """Lưu bản ghi vi phạm mới kèm theo thời lượng thực tế"""
         time_str = datetime.now().strftime("%H:%M:%S %d/%m/%Y")
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     "INSERT INTO violations (time, duration, image) VALUES (?, ?, ?)",
-                    (time_str, 5.0, filename)
+                    (time_str, duration, filename)
                 )
                 conn.commit()
             return True

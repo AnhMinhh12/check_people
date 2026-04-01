@@ -41,6 +41,7 @@ class AIWorker(threading.Thread):
         last_loop_time = time.time()
         last_emit_time = 0
         screenshot_taken = False
+        current_violation_img = None # Lưu tên ảnh tạm để chốt sổ sau
         
         logger.info(">>> [BẮT ĐẦU] Hệ thống Warden AI đã sẵn sàng và đang giám sát!")
 
@@ -78,11 +79,20 @@ class AIWorker(threading.Thread):
                     status = "AN TOÀN" # Đang trong 1 giây "đệm"
                 
                 if status == "VI PHẠM" and not screenshot_taken:
-                    self._save_violation(frame, detections, count_in_roi)
+                    # Chụp ảnh bằng chứng ngay lúc vi phạm bắt đầu (từ 5s)
+                    current_violation_img = self._save_violation_snapshot(frame, detections, count_in_roi)
                     screenshot_taken = True
             else:
+                # Nếu trước đó đang có vi phạm, giờ quay lại -> CHỐT SỔ
+                if screenshot_taken and current_violation_img:
+                    self.db_manager.add_violation("Người vận hành rời khỏi vị trí", 
+                                                 current_violation_img, 
+                                                 round(total_missing_time, 1))
+                    logger.info(f"Kết thúc vi phạm: Tổng thời gian vắng mặt {round(total_missing_time, 1)}s")
+
                 total_missing_time = 0.0
                 screenshot_taken = False
+                current_violation_img = None
 
             # Gửi dữ liệu Dashboard (5Hz - 0.2s) để mượt mà và rõ nét hơn
             if now - last_emit_time > 0.2:
@@ -106,34 +116,27 @@ class AIWorker(threading.Thread):
                 self.socketio.emit('stats_update', self.system_data)
                 last_emit_time = now
 
-    def _save_violation(self, frame, detections, count_in_roi):
-        """Lưu bằng chứng vi phạm kèm theo các đường vẽ AI"""
+    def _save_violation_snapshot(self, frame, detections, count_in_roi):
+        """Chụp ảnh hiện trường ngay lúc vi phạm và trả về tên file"""
         try:
-            # 1. Vẽ thông tin bằng chứng lên ảnh gốc
             save_frame = frame.copy()
-            
-            # Vẽ ROI (Màu đỏ làm nổi bật vi phạm)
             if self.engine.current_roi is not None:
                 cv2.polylines(save_frame, [self.engine.current_roi], True, (0, 0, 255), 3)
-            
-            # Vẽ các đối tượng phát hiện
             for d in detections:
                 box = d["box"]
-                # Trong vùng = Green, Ngoài vùng = Yellow
                 color = (0, 255, 0) if d["is_safe"] else (0, 255, 255)
                 cv2.rectangle(save_frame, (box[0], box[1]), (box[2], box[3]), color, 3)
 
-            # Thêm Text tiêu đề bằng chứng
-            cv2.putText(save_frame, f"VI PHAM: ROI (CURRENT: {count_in_roi} PERSON)", (50, 50), 
+            cv2.putText(save_frame, "VI PHAM DANG DIEN RA", (50, 50), 
                         cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"violation_{timestamp}.jpg"
             cv2.imwrite(os.path.join("violations", filename), save_frame)
-            self.db_manager.add_violation("Người vận hành rời khỏi vị trí", filename)
-            logger.info(f"Đã lưu bằng chứng vi phạm {filename} kèm tọa độ AI")
+            return filename
         except Exception as e:
-            logger.error(f"Lỗi lưu vi phạm: {e}")
+            logger.error(f"Lỗi chụp ảnh hiện trường: {e}")
+            return None
 
     def stop(self):
         self.running = False

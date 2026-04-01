@@ -31,3 +31,6 @@ def save_roi_config():
         return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+@api_bp.route('/api/health')
+def health():
+    return jsonify({"status": "ok"})

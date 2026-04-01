@@ -1,78 +1,81 @@
-# Sentinel Warden - Hệ Thống Giám Sát An Toàn Công Nghiệp AI
+# Sentinel Warden - Hệ Thống Giám Sát An Toàn Công Nghiệp AI (V4.0)
 
-[![Python Version](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
+[![Python Version](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![Framework](https://img.shields.io/badge/Framework-Flask-green.svg)](https://flask.palletsprojects.com/)
 [![AI Engine](https://img.shields.io/badge/AI-YOLOv8-red.svg)](https://github.com/ultralytics/ultralytics)
 
-Hệ thống giám sát thời gian thực dựa trên trí tuệ nhân tạo (AI) để phát hiện sự hiện diện của nhân viên trong vùng an toàn (ROI). Tự động ghi lại bằng chứng vi phạm và cảnh báo tức thì qua giao diện Web.
+Hệ thống giám sát thời gian thực dựa trên trí tuệ nhân tạo (AI) để phát hiện sự hiện diện của nhân sự trong vùng an toàn (ROI). Tự động ghi lại bằng chứng vi phạm và cảnh báo tức thì qua giao diện Web Dashboard.
 
-## 🚀 Tính Năng Chính
-- **Giám sát thời gian thực**: Kết nối luồng RTSP từ camera IP công nghiệp.
-- **Phát hiện người (AI)**: Sử dụng YOLOv8-Nano tối ưu hóa cho tốc độ xử lý cao.
-- **ROI Đa Giác (Polygonal ROI)**: Cấu hình vùng an toàn linh hoạt ngay trên giao diện web.
-- **Ghi nhật ký vi phạm**: Tự động lưu ảnh bằng chứng và thời lượng vi phạm vào SQLite database.
-- **Giao diện Dashboard cao cấp**: Hiển thị FPS, trạng thái kết nối và lịch sử vi phạm thời gian thực.
+---
+
+## 🚀 Tính Năng Nổi Bật (V4.0)
+
+- **Multi-point Vertical Scanning**: Thuật toán quét 4 điểm dọc (100%, 90%, 75%, 50% chiều cao) giúp nhận diện ổn định ngay cả khi bị che khuất một phần.
+- **Confirmation Logic (1s)**: Cơ chế đệm 1 giây giúp loại bỏ hiện tượng "nháy" trạng thái do AI mất dấu khung hình ngắn hạn.
+- **Real-time Web Dashboard**: Cập nhật trạng thái và hình ảnh 5Hz qua SocketIO, mang lại trải nghiệm mượt mà, không giật lag.
+- **Dynamic ROI configuration**: Cho phép thay đổi vùng giám sát trực tiếp từ trình duyệt và áp dụng tức thì xuống Backend.
+- **Advanced Evidence Collection**: Tự động chụp ảnh vi phạm kèm khung nhận diện (Annotated Images) và lưu vào SQLite database.
+- **Automatic NMS Optimization**: Tự động lọc bỏ các bounding box bị chia cắt do vật cản phần cứng tại hiện trường.
+
+---
 
 ## 🛠 Yêu Cầu Hệ Thống
-- **OS**: Windows / Linux / macOS
-- **Python**: 3.8 trở lên
-- **Hardware**: CPU Core i5+ hoặc GPU NVIDIA (khuyên dùng để tăng FPS)
+
+- **Hệ điều hành**: Windows 10/11, Linux (Ubuntu 20.04+)
+- **Python**: 3.9 trở lên
+- **Phần cứng**: CPU Intel Core i5 Gen 10th+ hoặc GPU NVIDIA (Khuyên dùng để đạt 15+ FPS)
+- **Camera**: Luồng RTSP chuẩn (H.264/H.265)
+
+---
 
 ## 📦 Hướng Dẫn Cài Đặt
 
-1. **Clone project và truy cập thư mục**:
+1. **Chuẩn bị môi trường**:
    ```bash
    cd check_person
-   ```
-
-2. **Tạo và kích hoạt môi trường ảo**:
-   ```powershell
    python -m venv venv
    .\venv\Scripts\activate
    ```
 
-3. **Cài đặt thư viện**:
+2. **Cài đặt thư viện**:
    ```bash
    pip install -r requirements.txt
    ```
 
-4. **Cấu hình file `.env`**:
-   Sửa file `.env` ở thư mục gốc:
-   ```env
-   RTSP_URL=rtsp://your_camera_url
-   MODEL_PATH=yolov8n.pt
-   FLASK_PORT=5000
-   ALARM_DELAY_SECONDS=5.0
-   ```
+3. **Cấu hình**:
+   Hệ thống đọc cấu hình camera trực tiếp trong `app.py` hoặc qua biến môi trường. Mặc định chạy tại cổng `5000`.
 
-## 🖥 Chạy Ứng Dụng
+---
+
+## 🖥 Khởi Chạy
+
 ```powershell
 python app.py
 ```
 Sau đó truy cập: `http://localhost:5000`
 
-## 📂 Cấu Trúc Thư Mục (Modular Architecture)
-- `src/core/`: Logic xử lý AI và Camera Stream.
-- `src/database/`: Quản lý lưu trữ dữ liệu vi phạm.
-- `src/services/`: Worker chạy nền xử lý luồng AI.
-- `src/api/`: Các endpoint API và SocketIO.
-- `templates/`: Giao diện người dùng (Frontend).
+---
 
-## 🐳 Triển Khai Với Docker (Khuyên Dùng)
+## 📂 Kiến Trúc Dự Án (Modular Architecture)
 
-Nếu bạn đã cài đặt Docker Desktop, bạn có thể chạy dự án mà không cần cài đặt Python cục bộ:
+- `src/core/`: Logic lõi hệ thống (AI Engine, Camera Stream, Database).
+- `src/services/`: Các background worker xử lý luồng AI liên tục.
+- `src/database/`: Các logic phụ trợ về lưu trữ và truy xuất lịch sử.
+- `src/api/`: Các endpoint Flask và SocketIO Events.
+- `templates/`: Giao diện Dashboard (HTML/CSS/JS).
 
-1. **Khởi chạy container**:
-   ```bash
-   docker-compose up --build -d
-   ```
+---
 
-2. **Dừng hệ thống**:
-   ```bash
-   docker-compose down
-   ```
+## 🐳 Triển Khai Với Docker
 
-Lưu ý: Các dữ liệu như `sentinel.db`, `roi_config.json`, và ảnh trong thư mục `violations/` sẽ được đồng bộ trực tiếp với máy host, nên bạn sẽ không bị mất dữ liệu khi xóa container.
+Triển khai nhanh chóng với Docker Compose:
+```bash
+docker-compose up --build -d
+```
+Dữ liệu vi phạm và cấu hình được mount trực tiếp vào host qua Volumes để đảm bảo tính bền vững.
 
-## 📄 Giấy Phép
-Dự án được phát triển nội bộ cho mục đích giám sát an toàn lao động.
+---
+
+## 📄 Tài Liệu Chi Tiết
+- [Mô tả chi tiết tính năng](docs/mo_ta.md)
+- [Kiến trúc hệ thống chi tiết](docs/ARCHITECTURE.md)

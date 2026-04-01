@@ -292,7 +292,7 @@
                     container.innerHTML = data.map(v => `
                         <tr class="border-b border-white/5">
                             <td class="px-8 py-4 text-slate-300 font-mono">${v.time}</td>
-                            <td class="px-8 py-4"><span class="px-3 py-1 bg-red-500/20 text-red-400 rounded-full text-[10px] font-black uppercase">Rời vị trí</span></td>
+                            <td class="px-8 py-4"><span class="px-3 py-1 bg-red-500/20 text-red-400 rounded-full text-[10px] font-black uppercase">${v.duration}s</span></td>
                             <td class="px-8 py-4"><img src="/violations/${v.image}" class="h-10 rounded-lg hover:scale-110 transition-transform cursor-pointer" onclick="openModal('/violations/${v.image}')"/></td>
                             <td class="px-8 py-4 text-right"><button class="text-tertiary font-bold text-xs hover:underline" onclick="openModal('/violations/${v.image}')">CHI TIẾT</button></td>
                         </tr>

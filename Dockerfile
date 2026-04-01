@@ -1,4 +1,4 @@
-# Sử dụng image Python 3.11 dạng slim để tương thích thư viện mới
+# Image Python 3.11 Slim - Hiệu năng cao & Kích thước nhẹ cho môi trường V4.0
 FROM python:3.11-slim
 
 # Ngăn Python tạo file .pyc và bật log trực tiếp ra console
@@ -8,26 +8,34 @@ ENV PYTHONUNBUFFERED 1
 # Thiết lập thư mục làm việc trong container
 WORKDIR /app
 
-# Cài đặt các thư viện hệ thống cần thiết cho OpenCV và YOLO
+# Cài đặt các thư viện hệ thống cần thiết (OpenCV, YOLO, HealthCheck)
 RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
     libxrender-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Nâng cấp pip và cài đặt Torch bản rút gọn (CPU Only) để tải nhanh và nhẹ dĩa D
+# Cài đặt Pip & Dependencies (Cơ chế Catching giúp build nhanh hơn)
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
+    # Cài đặt Torch bản rút gọn (CPU Only) để bản build nhẹ dĩa cứng
     pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
-    pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+    pip install --no-cache-dir -r requirements.txt
 
 # Sao chép toàn bộ mã nguồn vào container
 COPY . .
 
-# Mở port 5000 cho Flask
+# Mở port 5000 cho Server
 EXPOSE 5000
 
-# Lệnh khởi chạy ứng dụng
+# Metadata nhãn của dự án (Tùy chọn)
+LABEL maintainer="it07"
+LABEL version="4.0"
+LABEL description="Sentinel Warden AI Safety Monitoring System"
+
+# Lệnh khởi chạy chính
+# Sử dụng trực tiếp app.py với Flask-SocketIO + eventlet (từ requirements)
 CMD ["python", "app.py"]

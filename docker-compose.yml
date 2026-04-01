@@ -1,27 +1,38 @@
 services:
   warden-app:
     build: .
-    container_name: sentinel-warden
+    container_name: sentinel-warden-v4
     restart: always
     ports:
       - "5000:5000"
     volumes:
-      # Gắn file cấu hình để sửa bên ngoài mà không cần build lại
+      # Sơ đồ Volumes mới: Tách biệt mã nguồn và dữ liệu
       - ./.env:/app/.env
       - ./roi_config.json:/app/roi_config.json
       - ./src:/app/src
-      # Gắn thư mục gốc để các tệp Model tải về sẽ hiện lên máy Local
-      - ./:/app
-      # Gắn database và thư mục ảnh vi phạm
+      - ./templates:/app/templates
       - ./sentinel.db:/app/sentinel.db
       - ./violations:/app/violations
+      # Không gắn ./:/app trực tiếp để tránh xung đột venv giữa Windows/Linux
     environment:
       - TZ=Asia/Ho_Chi_Minh
       # Ép OpenCV/FFMPEG sử dụng giao thức TCP thay vì UDP để ổn định hơn trong Docker
       - OPENCV_FFMPEG_CAPTURE_OPTIONS=rtsp_transport;tcp
+      - PYTHONUNBUFFERED=1
+    
+    # Giới hạn tài nguyên để container không chiếm dụng quá mức (Tùy chọn)
+    # mem_limit: 4g
+    # cpus: '4.0'
+    
     # Tăng bộ nhớ đệm cho Container để xử lý nén/giải nén luồng Camera nặng
     shm_size: '2gb'
-    # Cho phép truy cập phần cứng sâu hơn
+    # Cho phép truy cập phần cứng sâu hơn (ví dụ để dùng Camera USB nếu có)
     privileged: true
-    # Chạy trên Host Network nếu cần truy cập camera trong mạng LAN phức tạp
-    # network_mode: host 
+    
+    # Cơ chế tự động kiểm tra trạng thái container (V4.0)
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
