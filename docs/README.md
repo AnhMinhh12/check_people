@@ -1,81 +1,198 @@
-# Sentinel Warden - Hệ Thống Giám Sát An Toàn Công Nghiệp AI (V4.0)
+# 🛡️ Sentinel Warden AI — Safety Monitoring Platform
 
-[![Python Version](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
-[![Framework](https://img.shields.io/badge/Framework-Flask-green.svg)](https://flask.palletsprojects.com/)
-[![AI Engine](https://img.shields.io/badge/AI-YOLOv8-red.svg)](https://github.com/ultralytics/ultralytics)
+[![CI/CD](https://github.com/AnhMinhh12/check_people/actions/workflows/docker-build.yml/badge.svg)](https://github.com/AnhMinhh12/check_people/actions)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)
+![YOLO](https://img.shields.io/badge/YOLOv8s-Small-00FFFF?logo=yolo)
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
+![License](https://img.shields.io/badge/License-Internal-gray)
 
-Hệ thống giám sát thời gian thực dựa trên trí tuệ nhân tạo (AI) để phát hiện sự hiện diện của nhân sự trong vùng an toàn (ROI). Tự động ghi lại bằng chứng vi phạm và cảnh báo tức thì qua giao diện Web Dashboard.
+**Nền tảng giám sát an toàn lao động bằng AI** cho môi trường sản xuất công nghiệp. Tự động nhận diện người qua camera RTSP, cảnh báo khi công nhân rời vị trí, ghi ảnh bằng chứng vi phạm.
 
----
-
-## 🚀 Tính Năng Nổi Bật (V4.0)
-
-- **Multi-point Vertical Scanning**: Thuật toán quét 4 điểm dọc (100%, 90%, 75%, 50% chiều cao) giúp nhận diện ổn định ngay cả khi bị che khuất một phần.
-- **Confirmation Logic (1s)**: Cơ chế đệm 1 giây giúp loại bỏ hiện tượng "nháy" trạng thái do AI mất dấu khung hình ngắn hạn.
-- **Real-time Web Dashboard**: Cập nhật trạng thái và hình ảnh 5Hz qua SocketIO, mang lại trải nghiệm mượt mà, không giật lag.
-- **Dynamic ROI configuration**: Cho phép thay đổi vùng giám sát trực tiếp từ trình duyệt và áp dụng tức thì xuống Backend.
-- **Advanced Evidence Collection**: Tự động chụp ảnh vi phạm kèm khung nhận diện (Annotated Images) và lưu vào SQLite database.
-- **Automatic NMS Optimization**: Tự động lọc bỏ các bounding box bị chia cắt do vật cản phần cứng tại hiện trường.
+> **Phiên bản hiện tại**: V4.5 Industrial Edition  
+> **Phần cứng đã test**: Intel Core i7-1355U (Gen 13)  
+> **Camera đã test**: Hikvision RTSP  
 
 ---
 
-## 🛠 Yêu Cầu Hệ Thống
+## ✨ Tính năng Chính
 
-- **Hệ điều hành**: Windows 10/11, Linux (Ubuntu 20.04+)
-- **Python**: 3.9 trở lên
-- **Phần cứng**: CPU Intel Core i5 Gen 10th+ hoặc GPU NVIDIA (Khuyên dùng để đạt 15+ FPS)
-- **Camera**: Luồng RTSP chuẩn (H.264/H.265)
-
----
-
-## 📦 Hướng Dẫn Cài Đặt
-
-1. **Chuẩn bị môi trường**:
-   ```bash
-   cd check_person
-   python -m venv venv
-   .\venv\Scripts\activate
-   ```
-
-2. **Cài đặt thư viện**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Cấu hình**:
-   Hệ thống đọc cấu hình camera trực tiếp trong `app.py` hoặc qua biến môi trường. Mặc định chạy tại cổng `5000`.
+| Tính năng | Mô tả |
+|---|---|
+| 🧠 **AI Nhận diện (YOLOv8s)** | Phát hiện người với độ chính xác cao, kể cả khi cúi/quay lưng |
+| 🔒 **Bám dính Đối tượng** | Bộ nhớ đệm 5 frame — Bounding Box không bao giờ bị "nháy" |
+| 📐 **Quét 5 điểm Dọc thân** | Từ chân lên vai, chỉ cần 1/5 điểm trong ROI = AN TOÀN |
+| ⏱️ **Cảnh báo thông minh** | Đệm 1s chống nháy → Cảnh báo RỜI VỊ TRÍ → VI PHẠM sau 5s |
+| 📸 **Ghi bằng chứng** | Tự động chụp ảnh có Bounding Box + ROI, lưu vào Database |
+| 🖥️ **Dashboard Premium** | Giao diện Glassmorphism, 4 tab, HUD cảnh báo toàn màn hình |
+| ⚙️ **Vẽ ROI trực tiếp** | Chuột trái chấm điểm, chuột phải hoàn tác, có hướng dẫn |
+| 🐋 **Docker & CI/CD** | Push code → Tự động Build + Push Image lên GitHub Registry |
 
 ---
 
-## 🖥 Khởi Chạy
+## 🚀 Cài đặt & Chạy
 
-```powershell
+### Yêu cầu
+- Python 3.10+ (khuyến nghị 3.11)
+- Camera IP hỗ trợ RTSP
+- Kết nối mạng LAN (khuyến nghị cáp Ethernet)
+
+### Cài đặt Local
+
+```bash
+# 1. Clone repository
+git clone https://github.com/AnhMinhh12/check_people.git
+cd check_people
+
+# 2. Tạo môi trường ảo
+python -m venv venv
+
+# Windows
+.\venv\Scripts\activate
+# Linux/Mac
+source venv/bin/activate
+
+# 3. Cài đặt thư viện
+pip install -r requirements.txt
+
+# 4. Cấu hình Camera
+# Chỉnh sửa RTSP_URL trong file .env hoặc app.py
+
+# 5. Chạy hệ thống
 python app.py
 ```
-Sau đó truy cập: `http://localhost:5000`
 
----
+Mở trình duyệt: **http://localhost:5000**
 
-## 📂 Kiến Trúc Dự Án (Modular Architecture)
+### Triển khai Docker
 
-- `src/core/`: Logic lõi hệ thống (AI Engine, Camera Stream, Database).
-- `src/services/`: Các background worker xử lý luồng AI liên tục.
-- `src/database/`: Các logic phụ trợ về lưu trữ và truy xuất lịch sử.
-- `src/api/`: Các endpoint Flask và SocketIO Events.
-- `templates/`: Giao diện Dashboard (HTML/CSS/JS).
-
----
-
-## 🐳 Triển Khai Với Docker
-
-Triển khai nhanh chóng với Docker Compose:
 ```bash
-docker-compose up --build -d
+# Cách 1: Dùng Docker Compose (Khuyến nghị)
+docker-compose up -d
+
+# Cách 2: Dùng Image trên GitHub Registry
+docker pull ghcr.io/anhminhh12/check_people:main
+docker run -d --name warden -p 5000:5000 ghcr.io/anhminhh12/check_people:main
 ```
-Dữ liệu vi phạm và cấu hình được mount trực tiếp vào host qua Volumes để đảm bảo tính bền vững.
 
 ---
 
-## 📄 Tài Liệu Chi Tiết
-- [Mô tả chi tiết tính năng](docs/mo_ta.md)
-- [Kiến trúc hệ thống chi tiết](docs/ARCHITECTURE.md)
+## ⚙️ Cấu hình
+
+### File `.env`
+```env
+# Camera
+RTSP_URL=rtsp://admin:password@192.168.1.10:554/Streaming/Channels/102
+
+# Server
+FLASK_PORT=5000
+FLASK_DEBUG=False
+
+# AI
+MODEL_PATH=yolov8s.pt          # yolov8n.pt (nhanh) | yolov8s.pt (chính xác)
+CONFIDENCE_THRESHOLD=0.15       # Ngưỡng tin cậy (0.15 = nhạy, 0.5 = chắc chắn)
+ALARM_DELAY_SECONDS=5.0         # Giây vắng mặt trước khi ghi vi phạm
+```
+
+### Các thông số nâng cao (trong code)
+
+| Thông số | Giá trị | File | Tác dụng |
+|---|---|---|---|
+| `max_memory_frames` | `5` | `ai_engine.py` | Số frame giữ vết người (chống nháy) |
+| Bộ đệm trạng thái | `1.0s` | `ai_worker.py` | Chờ 1s xác nhận trước khi chuyển trạng thái |
+| Dashboard emit | `0.2s` | `ai_worker.py` | Tần suất gửi data real-time (5Hz) |
+| JPEG Quality | `50` | `ai_worker.py` | Chất lượng ảnh truyền lên Dashboard |
+
+---
+
+## 🛠️ Hướng dẫn Vẽ Vùng An Toàn (ROI)
+
+1. Truy cập tab **Cấu Hình** trên Dashboard
+2. **Chuột Trái**: Click để chấm điểm — Tạo hình đa giác bao quanh vị trí làm việc
+3. **Chuột Phải**: Click để xóa điểm vừa vẽ sai (hoàn tác)
+4. Nhấn **"Lưu Cấu Hình"** để AI bắt đầu áp dụng vùng mới
+5. AI sẽ **tự động tải lại ROI** ngay lập tức (hot reload, không cần restart)
+
+> **💡 Mẹo**: Nên vẽ vùng rộng hơn thực tế một chút — AI V4.5 quét đến tận vai nên cần đủ không gian phía trên đầu công nhân.
+
+---
+
+## 📊 Giao diện Dashboard
+
+### 4 Tab chính
+
+| Tab | Chức năng |
+|---|---|
+| **Giám Sát** | Camera live + Bounding Box + ROI + FPS + Trạng thái + Thanh thời gian + Nhật ký |
+| **Nhật Ký** | Bảng lịch sử vi phạm kèm ảnh bằng chứng, click để phóng to |
+| **Phân Tích** | Thống kê tỉ lệ trực vị trí, tổng giờ rời máy, biểu đồ xu hướng tuần |
+| **Cấu Hình** | Vẽ vùng an toàn ROI trực tiếp trên camera live + Panel hướng dẫn |
+
+### Trạng thái hệ thống
+
+| Trạng thái | Hiển thị | Điều kiện |
+|---|---|---|
+| ✅ AN TOÀN | Chữ xanh cyan | Có người trong ROI |
+| ⚠️ RỜI VỊ TRÍ | Thanh bar đỏ chạy | Vắng mặt 1s–5s |
+| 🚨 VI PHẠM | HUD đỏ toàn màn hình | Vắng mặt ≥ 5s |
+
+---
+
+## 📁 Cấu trúc Dự án
+
+```
+check_person/
+├── app.py                      # Entry point chính
+├── .env                        # Cấu hình môi trường
+├── roi_config.json             # Tọa độ vùng an toàn
+├── requirements.txt            # Dependencies
+├── Dockerfile                  # Docker image
+├── docker-compose.yml          # Docker orchestration
+├── src/
+│   ├── core/
+│   │   ├── ai_engine.py        # AI: YOLOv8s + Tracking + Persistence + NMS
+│   │   ├── camera_stream.py    # Đọc RTSP trong thread riêng
+│   │   └── database.py         # SQLite manager
+│   ├── services/
+│   │   └── ai_worker.py        # Logic vi phạm + ghi bằng chứng
+│   ├── api/
+│   │   └── routes.py           # REST API endpoints
+│   └── tests/
+│       └── test_basic.py       # Unit tests
+├── templates/
+│   └── index.html              # Web Dashboard (4 tabs)
+├── violations/                 # Ảnh bằng chứng vi phạm
+├── docs/                       # Tài liệu
+│   ├── mo_ta.md                # Mô tả chi tiết hệ thống
+│   ├── ARCHITECTURE.md         # Kiến trúc kỹ thuật
+│   ├── README.md               # File này
+│   └── ROADMAP.md              # Lộ trình phát triển & mở rộng
+└── .github/workflows/
+    └── docker-build.yml        # CI/CD tự động
+```
+
+---
+
+## 📖 Tài liệu Chi tiết
+
+| File | Nội dung |
+|---|---|
+| [mo_ta.md](mo_ta.md) | Mô tả đầy đủ hệ thống: Logic, thông số, API, cấu hình |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Kiến trúc kỹ thuật: Sơ đồ luồng, threading, database, Docker |
+| [ROADMAP.md](ROADMAP.md) | Lộ trình mở rộng: 5→20→100 camera, GPU server, chi phí |
+
+---
+
+## 🔗 API Endpoints
+
+| Method | URL | Mô tả |
+|---|---|---|
+| GET | `/` | Dashboard chính |
+| GET | `/api/history` | 50 vi phạm gần nhất |
+| GET | `/api/health` | Health check |
+| POST | `/api/config_roi` | Lưu ROI mới |
+| GET | `/violations/<file>` | Ảnh bằng chứng |
+| WS | `stats_update` | Real-time data stream |
+
+---
+
+© 2026 Sentinel Warden AI — Industrial Safety Monitoring Platform

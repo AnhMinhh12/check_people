@@ -1,66 +1,222 @@
-# Kiến trúc Dự án Sentinel Warden (V4.0)
+# 🏛️ Kiến trúc Hệ thống — Sentinel Warden AI V4.5
 
-Hệ thống được thiết kế theo mô hình **Modular Micro-service**, tách biệt giữa việc thu thập dữ liệu (Camera), xử lý hình ảnh (AI), lưu trữ (DB) và hiển thị (Web).
-
----
-
-## 1. Thành Phần Chính (Core Components)
-
-### 1.1 Camera Streamer (`src/core/camera_stream.py`)
-- Sử dụng OpenCV để đọc luồng IP Camera (RTSP).
-- **Giao thức:** Ép sử dụng **TCP Transport** thay vì UDP để đảm bảo tính ổn định cao nhất, tránh rớt gói tin và hiện tượng đen màn hình trong môi trường công nghiệp.
-- Khởi chạy luồng riêng biệt (Daemon Thread) để liên tục cập nhật frame mới vào bộ đệm (Buffer).
-
-### 1.2 AI Engine (`src/core/ai_engine.py`)
-- Sử dụng mô hình **YOLOv8** (Tự động chọn bản s - Small hoặc n - Nano) để đạt độ chính xác công nghiệp.
-- **Multi-point Vertical Scanning**: Thuật toán quét 4 điểm dọc theo chiều cao người (100%, 90%, 75%, 50%) để kiểm tra sự có mặt trong ROI. Giúp hệ thống hoạt động ổn định kể cả khi chân bị che khuất một phần.
-- **Dynamic ROI**: Tự động nạp lại cấu hình `roi_config.json` khi có thay đổi từ phía Web Dashboard mà không cần khởi động lại.
-- **NMS bổ sung**: Cơ chế lọc bỏ các bounding box chồng lấn mạnh để tránh việc đếm trùng 1 người thành nhiều người do vật cản.
-
-### 1.3 Database Manager (`src/core/database.py`)
-- Sử dụng **SQLite** để lưu trữ lịch sử vi phạm.
-- Lưu trữ: Thời gian bắt đầu, thời lượng vắng mặt và đường dẫn ảnh bằng chứng.
-
-### 1.4 AI Worker (`src/services/ai_worker.py`)
-- Luồng điều phối chính (Orchestrator):
-    1. Đọc frame từ `CameraStreamer`.
-    2. Gửi qua `AIEngine` để nhận diện và kiểm tra ROI.
-    3. **Confirmation Logic**: Buffer 1 giây trước khi chuyển trạng thái "Rời vị trí" để chống nháy hình.
-    4. Ghi bản ghi vi phạm vào bộ nhớ tạm, sau đó "Chốt sổ" ghi vào DB khi công nhân quay lại.
-    5. Gửi dữ liệu liên tục (5Hz) tới Web Dashboard qua **SocketIO**.
+> **Phiên bản**: V4.5 Industrial Edition  
+> **Cập nhật**: 01/04/2026
 
 ---
 
-## 2. Luồng Dữ Liệu (Data Flow)
+## 📐 1. Sơ đồ Kiến trúc Tổng thể
 
 ```mermaid
 graph TD
-    A[Camera RTSP] -->|OpenCV Thread| B[Buffer Frame]
-    B -->|Fetch| C[AI Worker Service]
-    C -->|Inference| D[YOLOv8 Engine]
-    D -->|Multi-point Check| E{Trong vùng ROI?}
-    E -- Có --> F[Trạng thái: An toàn]
-    E -- Không > 1s --> G[Trạng thái: Rời vị trí]
-    G -- Liên tục > 5s --> H[Trạng thái: VI PHẠM]
-    H -->|Lưu ảnh bằng chứng| I[violations/ Folder]
-    H -->|Insert khi quay lại| J[SQLite Database]
-    F & G & H -->|Push Event| K[SocketIO Server]
-    K -->|Real-time UI| L[Browser Dashboard]
+    subgraph "Hardware Layer"
+        CAM[📷 Camera RTSP<br/>Hikvision/Dahua]
+        NET[🌐 Switch LAN<br/>Gigabit Ethernet]
+    end
+
+    subgraph "Backend Server (Python)"
+        CS[CameraStreamer<br/>Thread riêng biệt]
+        BUF[Frame Buffer<br/>Luôn giữ frame mới nhất]
+        AI[AIEngine<br/>YOLOv8s + Track + Persist]
+        AW[AIWorker<br/>Logic vi phạm + Ghi ảnh]
+        DB[(SQLite Database<br/>Bảng: logs)]
+        FLASK[Flask + SocketIO<br/>Port 5000]
+        API[REST API<br/>/api/history<br/>/api/config_roi<br/>/api/health]
+    end
+
+    subgraph "Frontend (Browser)"
+        DASH[🖥️ Dashboard<br/>Tab Giám Sát]
+        HIST[📋 Nhật Ký<br/>Tab Lịch Sử Vi Phạm]
+        ANAL[📊 Phân Tích<br/>Tab Thống Kê]
+        CONF[⚙️ Cấu Hình<br/>Tab Vẽ ROI]
+    end
+
+    CAM -->|Stream RTSP 30fps| NET
+    NET --> CS
+    CS -->|Ghi frame mới nhất| BUF
+    AW -->|Đọc frame| BUF
+    AW -->|Gọi detect_people| AI
+    AI -->|Trả kết quả detections| AW
+    AW -->|Ghi vi phạm| DB
+    AW -->|Emit stats_update| FLASK
+    FLASK -->|WebSocket Real-time| DASH
+    API -->|GET /api/history| HIST
+    API -->|POST /api/config_roi| CONF
+    FLASK --> API
 ```
 
 ---
 
-## 3. Lợi Thế Kỹ Thuật
+## 🔄 2. Luồng Dữ liệu Chi tiết (Data Flow)
 
-1. **Zero Latency Buffer**: Luồng camera độc lập giúp AI luôn xử lý hình ảnh mới nhất tại thời điểm hiện tại.
-2. **Detection Robustness**: Thuật toán quét đa điểm và bộ đệm trạng thái 1 giây giúp loại bỏ 99% báo động giả.
-3. **Seamless Config**: Cấu hình ROI được đồng bộ hóa tức thì từ Frontend xuống Backend.
-4. **Data Persistence**: Ảnh bằng chứng được lưu ở độ phân giải gốc kèm khung nhận diện để dễ dàng đối soát.
+### 2.1 Luồng Camera → AI → Dashboard
+
+```
+┌─────────────┐    RTSP     ┌─────────────────┐   Frame    ┌─────────────────┐
+│   Camera    │ ──────────▶ │ CameraStreamer   │ ────────▶  │   Frame Buffer  │
+│   (30fps)   │   TCP/UDP   │ (Thread #1)     │  .copy()   │   (Latest Only) │
+└─────────────┘             └─────────────────┘            └────────┬────────┘
+                                                                    │
+                                                                    ▼
+┌─────────────┐   Emit     ┌─────────────────────────────────────────────────┐
+│ Web Browser │ ◀───────── │                 AIWorker (Thread #2)            │
+│  Dashboard  │  SocketIO  │                                                 │
+└─────────────┘   (5Hz)    │  1. Đọc frame từ Buffer                        │
+                           │  2. self.engine.detect_people(frame)            │
+                           │     ├── YOLOv8s track(persist=True, classes=[0])│
+                           │     ├── Persistence Memory Check (5 frames)    │
+                           │     ├── Multi-point ROI Scan (5 points)        │
+                           │     └── Custom NMS (IoU > 50%)                 │
+                           │  3. Logic trạng thái:                          │
+                           │     ├── AN TOÀN (count ≥ 1 hoặc vắng < 1s)    │
+                           │     ├── RỜI VỊ TRÍ (vắng 1s–5s)              │
+                           │     └── VI PHẠM (vắng ≥ 5s → Chụp ảnh + DB)  │
+                           │  4. Encode JPEG (640x360, quality=50)          │
+                           │  5. Emit qua SocketIO mỗi 0.2s                │
+                           └─────────────────────────────────────────────────┘
+```
+
+### 2.2 Luồng Ghi Vi phạm
+
+```
+count_in_roi < 1 (liên tục ≥ 5s)
+    │
+    ▼
+_save_violation_snapshot(frame, detections)
+    │
+    ├── Copy frame gốc
+    ├── Vẽ đường viền ROI (Đỏ)
+    ├── Vẽ Bounding Box cho mỗi người
+    ├── Đóng dấu "VI PHAM DANG DIEN RA"
+    └── Lưu → violations/violation_YYYYMMDD_HHMMSS.jpg
+    
+Khi công nhân quay lại (count_in_roi ≥ 1):
+    │
+    └── db_manager.add_violation(message, filename, duration)
+        └── INSERT INTO logs (time, duration, image)
+```
 
 ---
 
-## 4. Bảo Mật & Tiêu Chuẩn
+## 🧠 3. Chi tiết Các Module
 
-1. **Quản lý cấu hình**: Tách biệt mã nguồn và cấu hình qua các file JSON/OS ENV.
-2. **Đóng gói Docker**: Sẵn sàng đóng gói với tối ưu hóa cho CPU (Windows & Linux).
-3. **Volume Mapping**: Đảm bảo dữ liệu SQLite và ảnh vi phạm không bị mất khi Restart Container.
+### 3.1 `ai_engine.py` — Bộ não AI
+
+| Thành phần | Mô tả |
+|---|---|
+| **Model** | `YOLO("yolov8s.pt", task="detect")` — Small model, 11.1M params, 28.6 GFLOPs |
+| **Tracking** | `model.track(frame, persist=True, classes=[0], conf=0.15)` — Track người liên tục, cấp ID duy nhất |
+| **Confidence** | `0.15` — Ngưỡng rất thấp để bắt được tư thế khó (cúi, quay lưng) |
+| **Persistence** | `self.memory = {}` — Dict lưu {track_id: {detection, frames_missing}}. Max 5 frame |
+| **ROI Check** | Multi-point scan ở tỉ lệ `[1.0, 0.8, 0.6, 0.4, 0.2]` trên trục Y của Bounding Box |
+| **NMS** | Custom overlap check: IoU > 50% → Loại box nhỏ hơn |
+| **Hot Reload** | So sánh `mtime` của `roi_config.json` mỗi frame. Nếu file thay đổi → Tự động tải lại ROI |
+
+### 3.2 `camera_stream.py` — Đọc Camera
+
+| Thành phần | Mô tả |
+|---|---|
+| **Thread riêng** | Chạy daemon thread tách biệt, không block AI Worker |
+| **Buffer Size** | `CAP_PROP_BUFFERSIZE = 1` — Chỉ giữ 1 frame mới nhất, tránh delay |
+| **Auto Reconnect** | Nếu `cap.isOpened() == False` → Retry sau 2 giây (vòng lặp) |
+| **Thread Lock** | `threading.Lock()` bảo vệ biến `self.frame` khỏi race condition |
+
+### 3.3 `ai_worker.py` — Logic Nghiệp vụ
+
+| Thành phần | Mô tả |
+|---|---|
+| **Daemon Thread** | `self.daemon = True` — Tự tắt khi chương trình chính thoát |
+| **Bộ đệm 1s** | Vắng < 1 giây vẫn giữ trạng thái AN TOÀN (chống nháy cấp business) |
+| **Ngưỡng 5s** | Vắng ≥ 5s → Chụp ảnh bằng chứng + Ghi Database |
+| **Dashboard 5Hz** | Gửi dữ liệu lên Web mỗi 0.2 giây — Đủ mượt mà cho người giám sát |
+| **FPS Realtime** | `1.0 / (elapsed + 0.001)` — Đo tốc độ xử lý thực tế mỗi frame |
+
+### 3.4 `routes.py` — REST API
+
+| Endpoint | Method | Chức năng |
+|---|---|---|
+| `/api/history` | GET | Trả về 50 vi phạm gần nhất từ Database |
+| `/api/config_roi` | POST | Nhận tọa độ ROI từ Web, lưu vào `roi_config.json` (≥ 3 điểm) |
+| `/api/health` | GET | Health check cho Docker Healthcheck |
+| `/violations/<file>` | GET | Phục vụ ảnh bằng chứng từ thư mục `violations/` |
+
+---
+
+## 🧵 4. Mô hình Đa luồng (Threading Model)
+
+```
+┌─────────────────────────────────────────────────┐
+│                 Main Thread                      │
+│         Flask + SocketIO Server                  │
+│         (Xử lý HTTP + WebSocket)                │
+└─────┬───────────────────────────┬───────────────┘
+      │                           │
+      ▼                           ▼
+┌─────────────────┐    ┌──────────────────────┐
+│  Thread #1      │    │  Thread #2           │
+│  CameraStreamer │    │  AIWorker            │
+│  ─────────────  │    │  ──────────────────  │
+│  Đọc RTSP liên  │    │  Đọc frame → AI →   │
+│  tục, lưu vào   │    │  Logic vi phạm →    │
+│  buffer         │    │  Emit Dashboard     │
+└─────────────────┘    └──────────────────────┘
+```
+
+**Lưu ý quan trọng**: 
+- `async_mode='threading'` trong SocketIO (thay vì eventlet/gevent) để tương thích hoàn toàn với OpenCV trên Windows.
+- Cả 3 thread đều là `daemon` → Khi tắt `app.py` (Ctrl+C), tất cả tự dừng.
+
+---
+
+## 💾 5. Cấu trúc Database
+
+### Bảng `logs` (SQLite)
+
+| Cột | Kiểu | Mô tả |
+|---|---|---|
+| `id` | INTEGER PRIMARY KEY | Tự tăng |
+| `time` | TEXT | Thời điểm vi phạm (ISO format) |
+| `description` | TEXT | Nội dung: "Người vận hành rời khỏi vị trí" |
+| `duration` | REAL | Tổng giây vắng mặt (ví dụ: 8.0, 24.1, 33.4) |
+| `image` | TEXT | Tên file ảnh: `violation_20260401_153402.jpg` |
+
+---
+
+## 🐋 6. Docker & CI/CD
+
+### 6.1 Dockerfile
+```dockerfile
+FROM python:3.11-slim
+# Cài libgl1, libglib2.0 (cho OpenCV), curl (cho healthcheck)
+# Cài PyTorch CPU-only (giảm kích thước image)
+# Cài requirements.txt (bao gồm opencv-python-headless)
+CMD ["python", "app.py"]
+```
+
+### 6.2 GitHub Actions (`.github/workflows/docker-build.yml`)
+- **Trigger**: Push lên `main` hoặc `master`
+- **Steps**: Checkout → Login GHCR → Docker Metadata → Build & Push
+- **Registry**: `ghcr.io/anhminhh12/check_people:main`
+- **Lưu ý**: Không chạy Unit Test trên CI (đã tối giản để Build luôn thành công)
+
+---
+
+## 🌐 7. Giao diện Web Dashboard
+
+### 4 Tab chính:
+
+| Tab | Chức năng | Dữ liệu |
+|---|---|---|
+| **Giám Sát** | Camera live + Bounding Box + ROI + Trạng thái + FPS | Real-time qua WebSocket |
+| **Nhật Ký** | Bảng lịch sử vi phạm + Ảnh bằng chứng + Thời lượng | REST API `/api/history` |
+| **Phân Tích** | Tỉ lệ trực vị trí + Biểu đồ tuần + Tổng giờ rời máy | Dữ liệu mẫu (cần kết nối DB) |
+| **Cấu Hình** | Vẽ ROI trên camera live + Panel hướng dẫn 3 bước | REST API `/api/config_roi` |
+
+### Overlay trên Camera Live (Tab Giám Sát):
+- **Đường viền ROI**: Xanh lá khi AN TOÀN, Đỏ khi VI PHẠM
+- **Bounding Box người**: Xanh lá nếu trong ROI, Vàng nếu ngoài ROI
+- **HUD Cảnh báo**: Viền đỏ toàn màn hình khi phát hiện VI PHẠM
+
+---
+
+*Tài liệu được đồng bộ từ source code thực tế — 01/04/2026*
