@@ -71,7 +71,12 @@ class AIWorker(threading.Thread):
             status = "AN TOÀN"
             if count_in_roi < 1:
                 total_missing_time += time_delta
-                status = "CẢNH BÁO" if total_missing_time >= self.alarm_delay else "CHƯA THẤY NGƯỜI"
+                # Chỉ cảnh báo sau khi đã mất dấu thực sự trên 1.0 giây để tránh tình trạng "nháy"
+                if total_missing_time >= 1.0:
+                    status = "CẢNH BÁO" if total_missing_time >= self.alarm_delay else "CHƯA THẤY NGƯỜI"
+                else:
+                    status = "AN TOÀN" # Đang trong 1 giây "đệm"
+                
                 if status == "CẢNH BÁO" and not screenshot_taken:
                     self._save_violation(frame)
                     screenshot_taken = True
@@ -95,8 +100,10 @@ class AIWorker(threading.Thread):
 
             # Gửi dữ liệu Dashboard (5Hz - 0.2s) để mượt mà và rõ nét hơn
             if now - last_emit_time > 0.2:
-                # Nâng chất lượng JPEG lên 60 để hình ảnh rõ hơn
-                _, buffer = cv2.imencode('.jpg', display_frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
+                # Resize ảnh Dashboard xuống 640x360 để giảm tải băng thông (giả sử camera là HD/FullHD)
+                mini_frame = cv2.resize(display_frame, (640, 360))
+                # Nâng chất lượng JPEG lên 50 (cân bằng giữa độ nét và tốc độ)
+                _, buffer = cv2.imencode('.jpg', mini_frame, [cv2.IMWRITE_JPEG_QUALITY, 50])
                 img_base64 = base64.b64encode(buffer).decode('utf-8')
 
                 self.system_data.update({

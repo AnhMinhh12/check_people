@@ -150,7 +150,7 @@
     </div>
 
     <script>
-        const socket = io({ transports: ['polling'] });
+        const socket = io();
         let currentTab = 'dashboard', roiPoints = [];
         const hud = document.getElementById('violation-hud'), vFeed = document.getElementById('video-feed'), cVideo = document.getElementById('config-video-bg'), nSignal = document.getElementById('no-signal');
 

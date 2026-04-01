@@ -10,6 +10,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 app = Flask(__name__)
+# Dùng threading để tương thích tốt với OpenCV trên Windows
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 app.register_blueprint(api_bp)
 

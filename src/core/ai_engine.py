@@ -46,9 +46,12 @@ class AIEngine:
             cv2.fillPoly(self.roi_mask, [scaled_poly], 255)
             self.current_roi = scaled_poly
 
-        results = self.model.predict(frame, classes=[0], conf=self.conf, verbose=False)
+        results = self.model.track(frame, persist=True, classes=[0], conf=self.conf, verbose=False)
         detections = []
         
+        if not results or not results[0].boxes:
+            return []
+            
         for r in results[0].boxes:
             box = r.xyxy[0].cpu().numpy().astype(int)
             x1, y1, x2, y2 = box
@@ -57,13 +60,48 @@ class AIEngine:
             
             is_safe = False
             if self.roi_mask is not None:
-                # 1. Ưu tiên kiểm tra điểm chân (Chính xác cao nhất)
-                if self.roi_mask[fy, fx] == 255:
-                    is_safe = True
-                # 2. Dự phòng: Nếu chân không ở trong (có thể bị che bởi biển/thùng), kiểm tra tâm người
-                elif self.roi_mask[cy, cx] == 255:
-                    is_safe = True
+                # Quét 3 mốc quan trọng ở nửa dưới cơ thể (75%, 90% và đáy 100%)
+                # Điều này giúp nhận diện người đứng sau biển báo/vật cản nhưng loại bỏ việc "thò đầu/vai" vào vùng ROI.
+                for ratio in [1.0, 0.9, 0.75]:
+                    test_y = int(y1 + (y2 - y1) * ratio)
+                    # Đảm bảo điểm kiểm tra nằm trong ảnh
+                    test_y = max(0, min(test_y, h - 1))
+                    
+                    if self.roi_mask[test_y, cx] == 255:
+                        is_safe = True
+                        break # Chỉ cần 1 trong các điểm này chạm vùng xanh là OK
             
             detections.append({"box": [int(x1), int(y1), int(x2), int(y2)], "is_safe": is_safe})
             
-        return detections
+        # CHỐNG ĐẾM TRÙNG (NMS Bổ sung): Lọc các box nằm đè lên nhau (do vật cản chia cắt cơ thể)
+        final_detections = []
+        # Sắp xếp từ box lớn đến box nhỏ để ưu tiên giữ box chính
+        detections.sort(key=lambda x: (x["box"][2]-x["box"][0]) * (x["box"][3]-x["box"][1]), reverse=True)
+        
+        for d in detections:
+            is_redundant = False
+            for f in final_detections:
+                if self._check_overlap(d["box"], f["box"]):
+                    is_redundant = True
+                    break
+            if not is_redundant:
+                final_detections.append(d)
+                
+        return final_detections
+
+    def _check_overlap(self, box1, box2):
+        """Kiểm tra nếu box1 nằm lọt trong hoặc chồng lấn mạnh với box2"""
+        ax1, ay1, ax2, ay2 = box1
+        bx1, by1, bx2, by2 = box2
+        
+        # Diện tích giao nhau
+        inter_x1, inter_y1 = max(ax1, bx1), max(ay1, by1)
+        inter_x2, inter_y2 = min(ax2, bx2), min(ay2, by2)
+        
+        if inter_x1 < inter_x2 and inter_y1 < inter_y2:
+            inter_area = (inter_x2 - inter_x1) * (inter_y2 - inter_y1)
+            area1 = (ax2 - ax1) * (ay2 - ay1)
+            # Nếu > 50% diện tích box nhỏ nằm trong box lớn -> Coi là trùng
+            if inter_area / float(area1) > 0.5:
+                return True
+        return False
