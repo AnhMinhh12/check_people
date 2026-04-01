@@ -1,61 +1,32 @@
-import os
 import logging
-from flask import Flask
+from flask import Flask, render_template
 from flask_socketio import SocketIO
-from dotenv import load_dotenv
-
-# Import các thành phần đã tách
-from src.database.db_manager import DBManager
+from src.core.database import DatabaseManager
 from src.services.ai_worker import AIWorker
-from src.api.routes import create_api_blueprint
+from src.api.routes import api_bp
 
-# Load environment variables
-load_dotenv()
-
-# Cấu hình log
+# Tinh giản Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger("WardenApp")
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
-# Đường dẫn & Cấu hình
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-VIOLATIONS_DIR = os.path.join(BASE_DIR, "violations")
-DB_PATH = os.path.join(BASE_DIR, "sentinel.db")
-VIOLATIONS_FILE_OLD = os.path.join(BASE_DIR, "violations.json")
+app = Flask(__name__)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+app.register_blueprint(api_bp)
 
-# RTSP & Mode Settings từ .env
-RTSP_URL = os.getenv("RTSP_URL")
-MODEL_PATH = os.getenv("MODEL_PATH", "yolov8n.pt")
-ALARM_DELAY_SECONDS = float(os.getenv("ALARM_DELAY_SECONDS", 5.0))
-FLASK_PORT = int(os.getenv("FLASK_PORT", 5000))
-FLASK_DEBUG = os.getenv("FLASK_DEBUG", "False").lower() == "true"
+# Cấu hình chuẩn
+RTSP_URL = "rtsp://admin:Htmp%402019@192.168.103.14:554/Streaming/Channels/102"
+MODEL_PATH = "models/yolov8n.pt"
+CONFIG_PATH = "roi_config.json"
+ALARM_DELAY = 5.0 # Giây
 
-def create_app():
-    # 1. Khởi tạo Flask & SocketIO
-    app = Flask(__name__)
-    socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading', allow_upgrades=False)
+db_manager = DatabaseManager()
+worker = AIWorker(RTSP_URL, MODEL_PATH, CONFIG_PATH, ALARM_DELAY, db_manager, socketio)
 
-    # 2. Khởi tạo Database Manager
-    db_manager = DBManager(DB_PATH, VIOLATIONS_DIR, VIOLATIONS_FILE_OLD)
-
-    # 3. Khởi tạo AI Worker (Background Service)
-    ai_worker = AIWorker(
-        rtsp_url=RTSP_URL,
-        model_path=MODEL_PATH,
-        config_path="roi_config.json",
-        alarm_delay=ALARM_DELAY_SECONDS,
-        db_manager=db_manager,
-        socketio=socketio
-    )
-    ai_worker.daemon = True
-    ai_worker.start()
-
-    # 4. Đăng ký API Routes (Blueprints)
-    api_bp = create_api_blueprint(ai_worker, db_manager, VIOLATIONS_DIR)
-    app.register_blueprint(api_bp)
-
-    return app, socketio
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 if __name__ == '__main__':
-    app, socketio = create_app()
-    logger.info(f">>> WARDEN SERVER READY AT http://localhost:{FLASK_PORT}")
-    socketio.run(app, host='0.0.0.0', port=FLASK_PORT, debug=FLASK_DEBUG, use_reloader=False, allow_unsafe_werkzeug=True)
+    worker.start()
+    print(f"\n>>> WARDEN SERVER READY AT http://localhost:5000\n")
+    socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)

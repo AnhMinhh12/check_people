@@ -1,21 +1,19 @@
 import sqlite3
 import os
-import json
 import logging
 from datetime import datetime
 
 logger = logging.getLogger("WardenApp.Database")
 
 class DBManager:
-    def __init__(self, db_path, violations_dir, old_json_path=None):
+    def __init__(self, db_path, violations_dir):
         self.db_path = db_path
         self.violations_dir = violations_dir
-        self.old_json_path = old_json_path
         os.makedirs(self.violations_dir, exist_ok=True)
         self.init_db()
 
     def init_db(self):
-        """Khởi tạo SQLite và chuyển đổi dữ liệu từ JSON nếu có"""
+        """Khởi tạo cấu trúc SQLite"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute('''
@@ -27,27 +25,6 @@ class DBManager:
             )
         ''')
         conn.commit()
-
-        # Kiểm tra migration từ JSON cũ
-        if self.old_json_path and os.path.exists(self.old_json_path):
-            logger.info("Phát hiện file dữ liệu cũ (JSON). Đang tiến hành chuyển đổi sang Database...")
-            try:
-                with open(self.old_json_path, "r") as f:
-                    history = json.load(f)
-                
-                for entry in reversed(history):
-                    cursor.execute(
-                        "INSERT INTO violations (time, duration, image) VALUES (?, ?, ?)",
-                        (entry.get("time"), entry.get("duration"), entry.get("image"))
-                    )
-                conn.commit()
-                
-                # Đổi tên file cũ để tránh migrate lại lần sau
-                os.rename(self.old_json_path, self.old_json_path + ".bak")
-                logger.info(f"Đã chuyển đổi thành công {len(history)} bản ghi. File cũ đã được lưu thành .bak")
-            except Exception as e:
-                logger.error(f"Lỗi khi chuyển đổi dữ liệu: {e}")
-        
         conn.close()
 
     def get_history(self, limit=100):

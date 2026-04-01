@@ -1,160 +1,125 @@
-import cv2
-import time
 import threading
+import time
+import cv2
 import logging
+import base64
+import os
 from datetime import datetime
 from src.core.camera_stream import CameraStreamer
 from src.core.ai_engine import AIEngine
 
-logger = logging.getLogger("WardenApp.Service")
+logger = logging.getLogger("AIWorker")
 
 class AIWorker(threading.Thread):
     def __init__(self, rtsp_url, model_path, config_path, alarm_delay, db_manager, socketio):
         super().__init__()
         self.streamer = CameraStreamer(rtsp_url)
-        self.engine = AIEngine(model_path=model_path, config_path=config_path)
-        self.alarm_delay = alarm_delay
+        self.engine = AIEngine(model_path, config_path)
         self.db_manager = db_manager
         self.socketio = socketio
+        self.alarm_delay = alarm_delay
+        self.running = False
+        self.daemon = True
         
-        self.running = True
-        self.screenshot_taken = False
-        self.current_violation_id = None
-        self.latest_frame = None
-        self.lock = threading.Lock()
-        
+        # Dashboard Data
         self.system_data = {
-            "status": "ĐANG CHỜ",
             "workers_in_roi": 0,
+            "people_count": 0,
             "total_workers": 0,
+            "status": "ĐANG CHỜ",
             "missing_time": 0.0,
             "fps": 0.0,
-            "camera_connected": True,
-            "original_resolution": [640, 360]
+            "camera_connected": False,
+            "image": None
         }
-        
-        # Cập nhật độ phân giải gốc
-        if self.engine.roi_mask is not None:
-             h, w = self.engine.roi_mask.shape
-             self.system_data["original_resolution"] = [w, h]
-
-    def get_latest_frame(self):
-        with self.lock:
-            return self.latest_frame
-
-    def get_system_data(self):
-        with self.lock:
-            return self.system_data.copy()
 
     def run(self):
+        self.running = True
         self.streamer.start()
         
-        last_frame_id = -1
-        last_processed_time = time.time()
-        last_inference_time = 0
-        INFERENCE_INTERVAL = 0.12 
-        
-        unique_frame_count = 0
-        last_stats_time = time.time()
-        detections = []
-        current_status = "ĐANG CHỜ"
         total_missing_time = 0.0
+        last_loop_time = time.time()
+        last_emit_time = 0
+        screenshot_taken = False
+        
+        logger.info(">>> [BẮT ĐẦU] Hệ thống Warden AI đã sẵn sàng và đang giám sát!")
 
         while self.running:
+            t0 = time.time()
             ret, frame, frame_id = self.streamer.read()
             
-            # Kiểm tra trạng thái kết nối
-            with self.lock:
-                if self.system_data.get("camera_connected") != ret:
-                    self.system_data["camera_connected"] = ret
-                    self.socketio.emit('stats_update', self.system_data)
+            # Đồng bộ kết nối Camera
+            if self.system_data["camera_connected"] != ret:
+                self.system_data["camera_connected"] = ret
+                self.socketio.emit('stats_update', self.system_data)
+                if ret: logger.info(">>> [STATUS] Camera đã kết nối!")
+                else: logger.warning(">>> [STATUS] Mất tín hiệu Camera!")
 
             if not ret or frame is None:
                 time.sleep(0.1)
                 continue
 
-            if frame_id == last_frame_id:
-                time.sleep(0.005)
-                continue
-
+            # Xử lý AI
+            detections = self.engine.detect_people(frame)
+            count_in_roi = sum(1 for d in detections if d["is_safe"])
+            
+            # Logic vi phạm
             now = time.time()
-            time_delta = now - last_processed_time
-            last_processed_time = now
-            unique_frame_count += 1
-            last_frame_id = frame_id
-
-            # 1. AI Inference
-            if (now - last_inference_time > INFERENCE_INTERVAL):
-                detections = self.engine.detect_people(frame)
-                last_inference_time = now
-
-            # 2. Vẽ Dashboard
-            display_frame = frame.copy()
-            people_in_roi = [d for d in detections if d["is_safe"]]
-            count_in_roi = len(people_in_roi)
+            time_delta = now - last_loop_time
+            last_loop_time = now
             
-            temp_status = "AN TOÀN"
+            status = "AN TOÀN"
             if count_in_roi < 1:
-                item_missing_time = total_missing_time + time_delta
-                if item_missing_time >= self.alarm_delay:
-                    temp_status = "CẢNH BÁO"
-                else:
-                    temp_status = current_status if current_status != "ĐANG CHỜ" else "AN TOÀN"
-            
-            roi_color = (0, 255, 0) if temp_status == "AN TOÀN" else (0, 0, 255)
-            if self.engine.roi_polygon is not None:
-                cv2.polylines(display_frame, [self.engine.roi_polygon], True, roi_color, 2)
-            
-            for det in detections:
-                color = (0, 255, 0) if det["is_safe"] else (0, 255, 255)
-                cv2.rectangle(display_frame, (det["box"][0], det["box"][1]), (det["box"][2], det["box"][3]), color, 2)
-                # Bút chì đầu người
-                fx, fy = int((det["box"][0] + det["box"][2]) / 2), det["box"][3]
-                cv2.circle(display_frame, (fx, fy), 5, color, -1)
-
-            # 3. Safety Logic
-            if count_in_roi >= 1:
-                total_missing_time = 0.0
-                new_status = "AN TOÀN"
-                self.screenshot_taken = False
-                self.current_violation_id = None
-            else:
                 total_missing_time += time_delta
-                new_status = "CẢNH BÁO" if (total_missing_time >= self.alarm_delay) else (current_status if current_status != "ĐANG CHỜ" else "AN TOÀN")
-                
-                if total_missing_time >= self.alarm_delay:
-                    if not self.screenshot_taken:
-                        violation_data = self.db_manager.save_violation(display_frame, total_missing_time)
-                        if violation_data:
-                            self.current_violation_id = violation_data.get("id")
-                            self.socketio.emit('new_violation', violation_data)
-                        self.screenshot_taken = True
-                    elif self.current_violation_id:
-                        self.db_manager.update_duration(self.current_violation_id, total_missing_time)
-                        self.socketio.emit('violation_update', {"id": self.current_violation_id, "duration": round(total_missing_time, 1)})
+                status = "CẢNH BÁO" if total_missing_time >= self.alarm_delay else "CHƯA THẤY NGƯỜI"
+                if status == "CẢNH BÁO" and not screenshot_taken:
+                    self._save_violation(frame)
+                    screenshot_taken = True
+            else:
+                total_missing_time = 0.0
+                screenshot_taken = False
 
-            if new_status != current_status:
-                current_status = new_status
-                msg = f"{time.strftime('%H:%M:%S')} | Trạng thái: {new_status}"
-                self.socketio.emit('status_update', {"status": new_status, "log": msg})
+            # Vẽ Dashboard Frame (ROI + Boxes)
+            roi_color = (0, 255, 0)
+            if status == "CHƯA THẤY NGƯỜI": roi_color = (0, 255, 255)
+            elif status == "CẢNH BÁO": roi_color = (0, 0, 255)
+            
+            display_frame = frame.copy()
+            if self.engine.current_roi is not None:
+                cv2.polylines(display_frame, [self.engine.current_roi], True, roi_color, 2)
 
-            # Update Stats mỗi 0.5s
-            if now - last_stats_time > 0.5:
-                fps = unique_frame_count / (now - last_stats_time)
-                with self.lock:
-                    self.system_data.update({
-                        "status": current_status,
-                        "workers_in_roi": count_in_roi,
-                        "total_workers": len(detections),
-                        "missing_time": round(total_missing_time, 1),
-                        "fps": round(fps, 1)
-                    })
+            for d in detections:
+                box = d["box"]
+                color = (0, 255, 0) if d["is_safe"] else (0, 255, 255)
+                cv2.rectangle(display_frame, (box[0], box[1]), (box[2], box[3]), color, 2)
+
+            # Gửi dữ liệu Dashboard (5Hz - 0.2s) để mượt mà và rõ nét hơn
+            if now - last_emit_time > 0.2:
+                # Nâng chất lượng JPEG lên 60 để hình ảnh rõ hơn
+                _, buffer = cv2.imencode('.jpg', display_frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
+                img_base64 = base64.b64encode(buffer).decode('utf-8')
+
+                self.system_data.update({
+                    "workers_in_roi": count_in_roi,
+                    "people_count": count_in_roi,
+                    "total_workers": len(detections),
+                    "status": status,
+                    "missing_time": round(total_missing_time, 1),
+                    "fps": round(1.0 / (time.time() - t0 + 0.001), 1),
+                    "image": img_base64
+                })
                 self.socketio.emit('stats_update', self.system_data)
-                last_stats_time = now
-                unique_frame_count = 0
+                last_emit_time = now
 
-            with self.lock:
-                self.latest_frame = display_frame
+    def _save_violation(self, frame):
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"violation_{timestamp}.jpg"
+            cv2.imwrite(os.path.join("violations", filename), frame)
+            self.db_manager.add_violation("Không có người trong vùng ROI", filename)
+            logger.info(f"Lịch sử: Đã lưu bằng chứng vi phạm {filename}")
+        except Exception as e:
+            logger.error(f"Lỗi lưu vi phạm: {e}")
 
     def stop(self):
         self.running = False
