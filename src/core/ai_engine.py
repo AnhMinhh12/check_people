@@ -8,12 +8,13 @@ from ultralytics import YOLO
 logger = logging.getLogger("AIEngine")
 
 class AIEngine:
-    def __init__(self, model_path="models/yolov8s.pt", config_path="roi_config.json"):
+    def __init__(self, model_path="yolov8s.pt", config_path="roi_config.json"):
         # Ưu tiên các model có sẵn trong máy
         final_model = model_path if os.path.exists(model_path) else "yolov8n.pt"
         self.model = YOLO(final_model)
         self.conf = 0.25
         self.config_path = config_path
+        self.last_config_mtime = 0
         self.roi_polygon = None
         self.roi_mask = None
         self.current_roi = None
@@ -23,6 +24,8 @@ class AIEngine:
         """Tải cấu hình ROI từ file JSON"""
         if os.path.exists(self.config_path):
             try:
+                # Cập nhật thời gian sửa file mới nhất
+                self.last_config_mtime = os.path.getmtime(self.config_path)
                 with open(self.config_path, "r") as f:
                     config = json.load(f)
                     # Chấp nhận cả roi_points (web mới) và roi_polygon (cũ)
@@ -30,11 +33,19 @@ class AIEngine:
                     self.roi_polygon = np.array(pts, dtype=np.int32)
                     if len(self.roi_polygon) > 0:
                         self.current_roi = self.roi_polygon.copy()
-                logger.info(f"Đã tải thành công ROI từ {self.config_path}")
+                
+                # Quan trọng: Reset Mask để nó được tính toán lại theo ROI mới ở khung hình tiếp theo
+                self.roi_mask = None
+                logger.info(f"Đã tải/Cập nhật ROI từ {self.config_path}")
             except Exception as e:
                 logger.error(f"Lỗi tải ROI config: {e}")
 
     def detect_people(self, frame):
+        # Tự động nạp lại nếu file config bị thay đổi bên ngoài (ví dụ từ Web API)
+        if os.path.exists(self.config_path):
+            if os.path.getmtime(self.config_path) > self.last_config_mtime:
+                self.load_config()
+                
         h, w = frame.shape[:2]
         
         # Tự động cập nhật Mask nếu Camera thay đổi độ phân giải

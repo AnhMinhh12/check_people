@@ -73,35 +73,21 @@ class AIWorker(threading.Thread):
                 total_missing_time += time_delta
                 # Chỉ cảnh báo sau khi đã mất dấu thực sự trên 1.0 giây để tránh tình trạng "nháy"
                 if total_missing_time >= 1.0:
-                    status = "CẢNH BÁO" if total_missing_time >= self.alarm_delay else "CHƯA THẤY NGƯỜI"
+                    status = "VI PHẠM" if total_missing_time >= self.alarm_delay else "RỜI VỊ TRÍ"
                 else:
                     status = "AN TOÀN" # Đang trong 1 giây "đệm"
                 
-                if status == "CẢNH BÁO" and not screenshot_taken:
-                    self._save_violation(frame)
+                if status == "VI PHẠM" and not screenshot_taken:
+                    self._save_violation(frame, detections, count_in_roi)
                     screenshot_taken = True
             else:
                 total_missing_time = 0.0
                 screenshot_taken = False
 
-            # Vẽ Dashboard Frame (ROI + Boxes)
-            roi_color = (0, 255, 0)
-            if status == "CHƯA THẤY NGƯỜI": roi_color = (0, 255, 255)
-            elif status == "CẢNH BÁO": roi_color = (0, 0, 255)
-            
-            display_frame = frame.copy()
-            if self.engine.current_roi is not None:
-                cv2.polylines(display_frame, [self.engine.current_roi], True, roi_color, 2)
-
-            for d in detections:
-                box = d["box"]
-                color = (0, 255, 0) if d["is_safe"] else (0, 255, 255)
-                cv2.rectangle(display_frame, (box[0], box[1]), (box[2], box[3]), color, 2)
-
             # Gửi dữ liệu Dashboard (5Hz - 0.2s) để mượt mà và rõ nét hơn
             if now - last_emit_time > 0.2:
-                # Resize ảnh Dashboard xuống 640x360 để giảm tải băng thông (giả sử camera là HD/FullHD)
-                mini_frame = cv2.resize(display_frame, (640, 360))
+                # Resize ảnh sạch (không vẽ đè) trả về Dashboard
+                mini_frame = cv2.resize(frame, (640, 360))
                 # Nâng chất lượng JPEG lên 50 (cân bằng giữa độ nét và tốc độ)
                 _, buffer = cv2.imencode('.jpg', mini_frame, [cv2.IMWRITE_JPEG_QUALITY, 50])
                 img_base64 = base64.b64encode(buffer).decode('utf-8')
@@ -113,18 +99,39 @@ class AIWorker(threading.Thread):
                     "status": status,
                     "missing_time": round(total_missing_time, 1),
                     "fps": round(1.0 / (time.time() - t0 + 0.001), 1),
-                    "image": img_base64
+                    "image": img_base64,
+                    "latest_detections": detections, # Gửi toạ độ người
+                    "roi_on_server": self.engine.current_roi.tolist() if self.engine.current_roi is not None else []
                 })
                 self.socketio.emit('stats_update', self.system_data)
                 last_emit_time = now
 
-    def _save_violation(self, frame):
+    def _save_violation(self, frame, detections, count_in_roi):
+        """Lưu bằng chứng vi phạm kèm theo các đường vẽ AI"""
         try:
+            # 1. Vẽ thông tin bằng chứng lên ảnh gốc
+            save_frame = frame.copy()
+            
+            # Vẽ ROI (Màu đỏ làm nổi bật vi phạm)
+            if self.engine.current_roi is not None:
+                cv2.polylines(save_frame, [self.engine.current_roi], True, (0, 0, 255), 3)
+            
+            # Vẽ các đối tượng phát hiện
+            for d in detections:
+                box = d["box"]
+                # Trong vùng = Green, Ngoài vùng = Yellow
+                color = (0, 255, 0) if d["is_safe"] else (0, 255, 255)
+                cv2.rectangle(save_frame, (box[0], box[1]), (box[2], box[3]), color, 3)
+
+            # Thêm Text tiêu đề bằng chứng
+            cv2.putText(save_frame, f"VI PHAM: ROI (CURRENT: {count_in_roi} PERSON)", (50, 50), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
+
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"violation_{timestamp}.jpg"
-            cv2.imwrite(os.path.join("violations", filename), frame)
-            self.db_manager.add_violation("Không có người trong vùng ROI", filename)
-            logger.info(f"Lịch sử: Đã lưu bằng chứng vi phạm {filename}")
+            cv2.imwrite(os.path.join("violations", filename), save_frame)
+            self.db_manager.add_violation("Người vận hành rời khỏi vị trí", filename)
+            logger.info(f"Đã lưu bằng chứng vi phạm {filename} kèm tọa độ AI")
         except Exception as e:
             logger.error(f"Lỗi lưu vi phạm: {e}")
 

@@ -35,16 +35,20 @@
         </div>
         <nav class="flex-1 space-y-1">
             <button onclick="showTab('dashboard')" id="nav-dashboard" class="w-full px-6 py-4 text-primary bg-surface-container border-l-4 border-primary flex items-center transition-all">
-                <span class="material-symbols-outlined mr-3 text-xl">grid_view</span>
-                <span class="text-sm font-bold tracking-tight">Giám Sát</span>
+                <span class="material-symbols-outlined mr-3 text-xl">monitoring</span>
+                <span class="text-sm font-black uppercase tracking-tighter">Giám Sát</span>
             </button>
             <button onclick="showTab('history')" id="nav-history" class="w-full px-6 py-4 text-slate-500 hover:bg-surface-container/30 border-l-4 border-transparent flex items-center transition-all">
-                <span class="material-symbols-outlined mr-3 text-xl">receipt_long</span>
-                <span class="text-sm font-bold tracking-tight">Lịch Sử</span>
+                <span class="material-symbols-outlined mr-3 text-xl">history</span>
+                <span class="text-sm font-black uppercase tracking-tighter">Nhật Ký</span>
+            </button>
+            <button onclick="showTab('analysis')" id="nav-analysis" class="w-full px-6 py-4 text-slate-500 hover:bg-surface-container/30 border-l-4 border-transparent flex items-center transition-all">
+                <span class="material-symbols-outlined mr-3 text-xl">analytics</span>
+                <span class="text-sm font-black uppercase tracking-tighter">Phân Tích</span>
             </button>
             <button onclick="showTab('config')" id="nav-config" class="w-full px-6 py-4 text-slate-500 hover:bg-surface-container/30 border-l-4 border-transparent flex items-center transition-all">
-                <span class="material-symbols-outlined mr-3 text-xl">architecture</span>
-                <span class="text-sm font-bold tracking-tight">Cấu Hình</span>
+                <span class="material-symbols-outlined mr-3 text-xl">settings</span>
+                <span class="text-sm font-black uppercase tracking-tighter">Cấu Hình</span>
             </button>
         </nav>
     </aside>
@@ -79,6 +83,7 @@
                 <section class="lg:col-span-8">
                     <div class="relative aspect-video bg-black rounded-3xl overflow-hidden border border-white/5 shadow-2xl">
                         <img id="video-feed" src="" class="w-full h-full object-contain" />
+                        <canvas id="dashboard-canvas" class="absolute top-0 left-0 w-full h-full pointer-events-none"></canvas>
                         <div id="no-signal" class="no-signal-overlay flex flex-col items-center justify-center">
                             <span class="material-symbols-outlined text-8xl text-red-500 mb-4">signal_disconnected</span>
                             <h2 class="text-2xl font-black text-white uppercase tracking-widest">MẤT TÍN HIỆU</h2>
@@ -87,7 +92,7 @@
                 </section>
                 <section class="lg:col-span-4 space-y-6">
                     <div class="bg-surface p-8 rounded-3xl border border-white/5">
-                        <h3 class="text-xs font-bold uppercase tracking-widest text-slate-500 mb-6">Tiến Độ Vi Phạm</h3>
+                        <h3 class="text-xs font-bold uppercase tracking-widest text-slate-500 mb-6">Thời gian Rời vị trí</h3>
                         <div class="h-4 w-full bg-black/50 rounded-full overflow-hidden mb-4">
                             <div id="time-bar" class="bg-red-500 h-full w-0 transition-all duration-500"></div>
                         </div>
@@ -122,6 +127,38 @@
             </div>
         </div>
 
+        <!-- ANALYSIS -->
+        <div id="tab-analysis" class="tab-content p-10 max-w-7xl mx-auto space-y-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="bg-surface p-8 rounded-3xl border border-white/5 shadow-xl">
+                    <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Tỷ lệ Trực vị trí</p>
+                    <div class="text-5xl font-headline font-black text-green-500">98.5%</div>
+                    <div class="mt-4 h-2 w-full bg-black/50 rounded-full overflow-hidden"><div class="bg-green-500 h-full w-[98.5%] shadow-[0_0_10px_#10b981]"></div></div>
+                </div>
+                <div class="bg-surface p-8 rounded-3xl border border-white/5 shadow-xl">
+                    <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Tổng giờ Rời máy (Hôm nay)</p>
+                    <div class="text-5xl font-headline font-black text-red-500">0h 14m</div>
+                </div>
+                <div class="bg-surface p-8 rounded-3xl border border-white/5 shadow-xl">
+                    <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Lần vi phạm (Tuần)</p>
+                    <div class="text-5xl font-headline font-black text-amber-500">12</div>
+                </div>
+            </div>
+            <div class="bg-surface p-12 rounded-[40px] border border-white/5 shadow-inner">
+                <h3 class="font-headline font-black text-2xl mb-12 uppercase italic tracking-tighter text-white">Thống kê Xu hướng Tuần</h3>
+                <div class="h-64 flex items-end justify-between space-x-4 px-6 border-b border-white/10 pb-2">
+                    <div class="relative flex-1 bg-gradient-to-t from-red-500/20 to-red-500/60 rounded-t-2xl" style="height: 30%"></div>
+                    <div class="relative flex-1 bg-gradient-to-t from-red-500/20 to-red-500/60 rounded-t-2xl" style="height: 50%"></div>
+                    <div class="relative flex-1 bg-gradient-to-t from-red-500/20 to-red-500/60 rounded-t-2xl" style="height: 85%"></div>
+                    <div class="relative flex-1 bg-gradient-to-t from-red-500/20 to-red-500/60 rounded-t-2xl" style="height: 45%"></div>
+                    <div class="relative flex-1 bg-gradient-to-t from-red-500/20 to-red-500/60 rounded-t-2xl" style="height: 15%"></div>
+                </div>
+                <div class="flex justify-between px-6 pt-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                    <span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>CN</span>
+                </div>
+            </div>
+        </div>
+
         <!-- CONFIG -->
         <div id="tab-config" class="tab-content p-10 max-w-7xl mx-auto space-y-6">
             <div class="bg-surface p-8 rounded-3xl border border-white/5">
@@ -145,7 +182,7 @@
     <div id="violation-hud" class="violation-hud flex items-center justify-center">
         <div class="bg-red-600 text-white p-10 rounded-2xl text-center shadow-2xl">
             <h2 class="text-5xl font-black italic uppercase font-headline">CẢNH BÁO</h2>
-            <p class="mt-2 font-bold tracking-widest uppercase">Vi phạm an toàn lao động</p>
+            <p class="mt-2 font-bold tracking-widest uppercase">Người vận hành rời khỏi vị trí</p>
         </div>
     </div>
 
@@ -159,10 +196,47 @@
             if (data.image) {
                 const b64 = 'data:image/jpeg;base64,' + data.image;
                 if (vFeed) vFeed.src = b64;
-                if (currentTab === 'config' && cVideo) cVideo.src = b64;
+                if (currentTab === 'config' && cVideo) {
+                    cVideo.src = b64;
+                    // Đảm bảo canvas luôn khớp kích thước video và vẽ lại liên tục
+                    if (canvas && (canvas.width !== cVideo.clientWidth)) initCanvas();
+                    drawROI(); 
+                }
             }
 
+            // Vẽ Overlay lên Dashboard (ROI và Boxes từ Server gửi về)
             if (currentTab === 'dashboard') {
+                const dCanvas = document.getElementById('dashboard-canvas');
+                if (dCanvas && vFeed) {
+                    dCanvas.width = vFeed.clientWidth; dCanvas.height = vFeed.clientHeight;
+                    const dCtx = dCanvas.getContext('2d');
+                    dCtx.clearRect(0, 0, dCanvas.width, dCanvas.height);
+                    
+                    // 1. Vẽ ROI từ Server (Xanh lá cây đậm)
+                    if (data.roi_on_server && data.roi_on_server.length > 0) {
+                        const roi_color = data.status === 'AN TOÀN' ? '#22c55e' : '#ef4444';
+                        dCtx.strokeStyle = roi_color; dCtx.lineWidth = 4; dCtx.beginPath();
+                        data.roi_on_server.forEach((p, i) => {
+                            const x = p[0] * (dCanvas.width / 640), y = p[1] * (dCanvas.height / 360);
+                            i === 0 ? dCtx.moveTo(x, y) : dCtx.lineTo(x, y);
+                        });
+                        dCtx.closePath(); dCtx.stroke();
+                    }
+
+                    // 2. Vẽ Bounding Boxes (Phân màu: In = Green, Out = Yellow)
+                    if (data.latest_detections) {
+                        data.latest_detections.forEach(d => {
+                            const b = d.box;
+                            const x1 = b[0] * (dCanvas.width / 640), y1 = b[1] * (dCanvas.height / 360);
+                            const x2 = b[2] * (dCanvas.width / 640), y2 = b[3] * (dCanvas.height / 360);
+                            // Trong vùng = Xanh lá, Ngoài vùng = Vàng
+                            dCtx.strokeStyle = d.is_safe ? '#22c55e' : '#eab308'; 
+                            dCtx.lineWidth = 4;
+                            dCtx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+                        });
+                    }
+                }
+
                 const count = data.workers_in_roi || 0;
                 if (document.getElementById('worker-count')) document.getElementById('worker-count').innerText = count;
                 if (document.getElementById('fps-display')) document.getElementById('fps-display').innerText = data.fps || '0.0';
@@ -179,20 +253,33 @@
                 } else if (data.status) {
                     if (disp) { disp.innerText = data.status; disp.style.color = '#ffb4ab'; }
                     if (card) card.style.borderColor = '#ffb4ab';
-                    if (hud) hud.style.display = data.status === 'CẢNH BÁO' ? 'flex' : 'none';
+                    if (hud) hud.style.display = data.status === 'VI PHẠM' ? 'flex' : 'none';
                 }
             }
         });
 
         function showTab(id) {
             currentTab = id;
+            
+            // Ẩn tất cả các tab
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             const el = document.getElementById('tab-' + id);
             if (el) el.classList.add('active');
-            const nav = document.getElementById('nav-' + id);
-            if (nav) document.getElementById('tab-title').innerText = nav.innerText.trim();
+
+            // Cập nhật nút bấm Sidebar (Xóa màu cũ, thêm màu mới)
+            document.querySelectorAll('aside button').forEach(btn => {
+                btn.classList.remove('text-primary', 'bg-surface-container', 'border-l-4', 'border-primary');
+                btn.classList.add('text-slate-500', 'hover:bg-surface-container/30', 'border-transparent');
+            });
+            const activeBtn = document.getElementById('nav-' + id);
+            if (activeBtn) {
+                activeBtn.classList.remove('text-slate-500', 'hover:bg-surface-container/30', 'border-transparent');
+                activeBtn.classList.add('text-primary', 'bg-surface-container', 'border-l-4', 'border-primary');
+                document.getElementById('tab-title').innerText = activeBtn.innerText.trim();
+            }
+
             if (id === 'history') loadHistory();
-            if (id === 'config') initCanvas();
+            if (id === 'config') setTimeout(initCanvas, 100); // Đợi tab hiện ra mới lấy kích thước canvas
         }
 
         async function loadHistory() {
@@ -204,10 +291,10 @@
                 if (Array.isArray(data)) {
                     container.innerHTML = data.map(v => `
                         <tr class="border-b border-white/5">
-                            <td class="px-8 py-4 text-slate-300">${v.time}</td>
-                            <td class="px-8 py-4 text-red-400 font-bold">${v.duration}s</td>
-                            <td class="px-8 py-4"><img src="/violations/${v.image}" class="h-10 rounded cursor-pointer" onclick="openModal('/violations/${v.image}')"/></td>
-                            <td class="px-8 py-4"><button class="text-tertiary text-xs" onclick="openModal('/violations/${v.image}')">CHI TIẾT</button></td>
+                            <td class="px-8 py-4 text-slate-300 font-mono">${v.time}</td>
+                            <td class="px-8 py-4"><span class="px-3 py-1 bg-red-500/20 text-red-400 rounded-full text-[10px] font-black uppercase">Rời vị trí</span></td>
+                            <td class="px-8 py-4"><img src="/violations/${v.image}" class="h-10 rounded-lg hover:scale-110 transition-transform cursor-pointer" onclick="openModal('/violations/${v.image}')"/></td>
+                            <td class="px-8 py-4 text-right"><button class="text-tertiary font-bold text-xs hover:underline" onclick="openModal('/violations/${v.image}')">CHI TIẾT</button></td>
                         </tr>
                     `).join('');
                 }
@@ -220,11 +307,12 @@
         const ctx = canvas ? canvas.getContext('2d') : null;
 
         function initCanvas() {
-            if (!canvas || !cVideo) return;
+            if (!canvas || !cVideo || cVideo.clientWidth === 0) return;
             canvas.width = cVideo.clientWidth;
             canvas.height = cVideo.clientHeight;
             drawROI();
         }
+
         if (canvas) {
             canvas.onmousedown = (e) => {
                 const r = canvas.getBoundingClientRect();
@@ -236,9 +324,20 @@
         }
 
         function drawROI() {
-            if (!ctx || !roiPoints.length) return;
+            if (!ctx || !canvas) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.strokeStyle = '#00daf3'; ctx.fillStyle = 'rgba(0, 218, 243, 0.2)'; ctx.lineWidth = 3;
+            if (!roiPoints.length) return;
+
+            // 1. Vẽ các chấm tròn tại điểm mốc (Xanh lá cây)
+            ctx.fillStyle = '#22c55e';
+            roiPoints.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p[0], p[1], 5, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 2. Vẽ các đường nối (Xanh lá cây đồng bộ)
+            ctx.strokeStyle = '#22c55e'; ctx.fillStyle = 'rgba(34, 197, 94, 0.2)'; ctx.lineWidth = 4;
             ctx.beginPath(); ctx.moveTo(roiPoints[0][0], roiPoints[0][1]);
             roiPoints.forEach(p => ctx.lineTo(p[0], p[1]));
             if (roiPoints.length > 2) ctx.closePath();
