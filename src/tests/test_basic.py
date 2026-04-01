@@ -14,7 +14,14 @@ class TestSentinelWarden(unittest.TestCase):
         # Sử dụng database tạm thời cho testing
         self.db_path = "test_sentinel.db"
         self.db = DBManager(self.db_path)
-        self.ai = AIEngine(model_path="yolov8n.pt")
+        
+        # CHỐNG LỖI KHI CHẠY TRÊN GITHUB ACTIONS (KHÔNG CÓ MÀN HÌNH/INTERNET CHẬM)
+        if os.getenv("GITHUB_ACTIONS") == "true":
+            from unittest.mock import MagicMock
+            self.ai = MagicMock(spec=AIEngine)
+            self.ai.model = "Mocked Model" # Giả lập model đã tải xong
+        else:
+            self.ai = AIEngine(model_path="yolov8n.pt")
 
     def tearDown(self):
         # Dọn dẹp sau khi test xong
