@@ -1,8 +1,8 @@
 # 🗺️ Lộ trình Phát triển & Kế hoạch Mở rộng — Sentinel Warden AI
 
-> **Phiên bản hiện tại**: V5.0 (Enterprise Edition)  
+> **Phiên bản hiện tại**: V5.0 (Enterprise Edition - Light Mode)  
 > **Ngày cập nhật**: 03/04/2026  
-> **Trạng thái**: Đã vận hành ổn định mô hình Đa Camera và Đồng bộ DB tự động.
+> **Trạng thái**: Đã vận hành ổn định mô hình Đa Camera, Đồng bộ DB và Nâng cấp Giao diện Modular.
 
 ---
 
@@ -30,9 +30,10 @@
 | Bộ nhớ đệm chống nháy (Persistence) | ✅ Hoàn thành | Giữ vết 5 khung hình, loại bỏ "ghost box" |
 | Vẽ vùng an toàn ROI trên Web | ✅ Hoàn thành | Đa giác tùy chỉnh, chuột trái/phải |
 | Cảnh báo HUD toàn màn hình | ✅ Hoàn thành | Viền đỏ nhấp nháy khi vi phạm |
-| Hỗ trợ nhiều Camera (Mới V5.0) | ✅ Hoàn thành | Chạy đa luồng song song thông qua WorkerManager |
-| Tự động đồng bộ Database (Mới V5.0)| ✅ Hoàn thành | Cơ chế Auto-Sync và Hard Delete theo file .env |
-| Quy hoạch cấu trúc Enterprise (Mới V5.0)| ✅ Hoàn thành | Tách biệt Source (`src/`), Database (`data/`), Model (`models/`) |
+| Hỗ trợ nhiều Camera (V5.0) | ✅ Hoàn thành | Chạy đa luồng song song thông qua WorkerManager |
+| Tự động đồng bộ Database (V5.0)| ✅ Hoàn thành | Cơ chế Auto-Sync theo file .env |
+| Quy hoạch cấu trúc Enterprise (V5.0)| ✅ Hoàn thành | Tách biệt Source (`src/`), Database (`data/`), Model (`models/`) |
+| **Nâng cấp Giao diện Light & Smooth (V5.0)**| ✅ Hoàn thành | Giao diện hiện đại, tối ưu UX, chia nhỏ Template |
 
 ### 1.2 Hạn chế hiện tại ⚠️
 | Hạn chế | Mức độ | Ảnh hưởng |

@@ -27,6 +27,41 @@
         let selectedROIPoints = [];
         let analyticsChartInstance = null;
 
+        /** CUSTOM DROPDOWN LOGIC */
+        function toggleDropdown(id) {
+            const el = document.getElementById(id);
+            const isHidden = el.classList.contains('hidden');
+            
+            // Close all other dropdowns first
+            document.querySelectorAll('.custom-dropdown > div').forEach(d => d.classList.add('hidden'));
+            
+            if (isHidden) el.classList.remove('hidden');
+        }
+
+        function selectDropdownOption(type, value, label) {
+            // Update the hidden input value
+            const input = document.getElementById(`${type}-cam-select`);
+            input.value = value;
+            
+            // Update the UI label
+            const labelEl = document.getElementById(`${type}-dropdown-label`);
+            labelEl.innerText = label;
+            
+            // Close dropdown
+            document.getElementById(`${type}-dropdown`).classList.add('hidden');
+            
+            // Trigger action
+            if (type === 'analysis') updateAnalysis();
+            if (type === 'history') loadHistory();
+        }
+
+        // Close dropdowns when clicking outside
+        window.addEventListener('click', function(e) {
+            if (!e.target.closest('.custom-dropdown')) {
+                document.querySelectorAll('.custom-dropdown > div').forEach(d => d.classList.add('hidden'));
+            }
+        });
+
         /** TAB MANAGEMENT */
         function showTab(id) {
             currentTab = id;
@@ -45,7 +80,7 @@
             }
 
             // Global Title Update
-            const titleMap = { 'dashboard': 'Overview Dashboard', 'analysis': 'Intelligence Report', 'history': 'Incident Evidence' };
+            const titleMap = { 'dashboard': 'Bảng điều khiển Giám sát', 'analysis': 'Báo cáo Phân tích Trí tuệ', 'history': 'Bằng chứng & Nhật ký' };
             document.getElementById('tab-title').innerText = titleMap[id] || 'WARDEN AI';
 
             if (id === 'history') loadHistory();
@@ -57,7 +92,7 @@
             focusedCamId = Number(id);
             document.getElementById('grid-view').classList.add('hidden');
             document.getElementById('focused-view').classList.remove('hidden');
-            document.getElementById('focused-cam-name').innerText = `LIVE FEED: ${name.toUpperCase()}`;
+            document.getElementById('focused-cam-name').innerText = `NGUỒN TRỰC TIẾP: ${name.toUpperCase()}`;
             document.getElementById('active-cam-id').innerText = `CAM-${String(id).padStart(2, '0')}`;
 
             // Clean previous listeners and focus on this one
@@ -92,7 +127,7 @@
                 }`;
             }
             if (statusEl) {
-                statusEl.innerText = data.camera_connected ? 'LIVE CONNECTION' : 'SIGNAL LOST';
+                statusEl.innerText = data.camera_connected ? 'ĐANG KẾT NỐI' : 'MẤT TÍN HIỆU';
                 statusEl.className = `px-4 py-1.5 text-[9px] font-black rounded-full border transition-all shadow-sm ${
                     data.camera_connected ? 'bg-secondary text-white border-secondary' : 'bg-slate-100 text-slate-400 border-slate-200'
                 }`;
@@ -191,7 +226,7 @@
                         <td class="px-12 py-8 font-bold text-slate-400">#CAM-${String(v.camera_id).padStart(2, '0')}</td>
                         <td class="px-12 py-8 text-slate-500 font-mono text-[11px]">${v.time}</td>
                         <td class="px-12 py-8">
-                            <span class="px-4 py-2 bg-danger/5 text-danger rounded-2xl text-[10px] font-black border border-danger/10 shadow-sm">${v.duration}s Breach</span>
+                            <span class="px-4 py-2 bg-danger/5 text-danger rounded-2xl text-[10px] font-black border border-danger/10 shadow-sm">${v.duration}s Vi phạm</span>
                         </td>
                         <td class="px-12 py-8 text-center">
                             <img src="/violations/${v.image}" class="h-16 w-16 object-cover mx-auto rounded-2xl hover:scale-150 transition-all cursor-pointer shadow-xl border-4 border-white" onclick="openEvidenceModal('/violations/${v.image}')"/>

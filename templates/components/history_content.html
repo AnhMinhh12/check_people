@@ -2,19 +2,36 @@
 <div id="tab-history" class="tab-content space-y-12 animate-fadeIn max-w-[1400px] mx-auto">
     <div class="flex flex-col lg:flex-row justify-between gap-10 border-b border-slate-100 pb-12">
         <div class="space-y-2">
-            <h2 class="text-4xl font-black italic tracking-tighter text-slate-800 uppercase font-headline">Incident Evidence <span class="text-danger not-italic tracking-[0.2em]">LOGS</span></h2>
-            <p class="text-[10px] text-slate-400 font-extrabold uppercase tracking-[0.3em]">Historical repository of all detected security breaches</p>
+            <h2 class="text-4xl font-black italic tracking-tighter text-slate-800 uppercase font-headline">Bằng chứng Sự cố <span class="text-danger not-italic">NHẬT KÝ</span></h2>
+            <p class="text-[10px] text-slate-400 font-extrabold uppercase tracking-[0.3em]">Kho lưu trữ lịch sử của tất cả các vi phạm an ninh được phát hiện</p>
         </div>
-        <div class="relative w-full lg:w-[320px] group">
-            <div class="absolute left-6 top-1/2 -translate-y-1/2 text-danger font-bold text-lg select-none">
-                <span class="material-symbols-outlined">filter_list</span>
+        <div class="custom-dropdown relative w-full lg:w-[350px]" id="history-dropdown-container">
+            <button onclick="toggleDropdown('history-dropdown')" 
+                class="w-full h-16 bg-white border border-slate-100 rounded-[2.5rem] text-[10px] font-black text-slate-700 uppercase pl-16 pr-10 shadow-2xl flex items-center justify-between group hover:border-danger/30 transition-all">
+                <div class="flex items-center gap-4">
+                     <span class="material-symbols-outlined text-danger font-bold text-lg">filter_list</span>
+                     <span id="history-dropdown-label">Báo cáo hệ thống chung (Tất cả)</span>
+                </div>
+                <span class="material-symbols-outlined text-slate-300 group-hover:text-danger transition-colors">expand_more</span>
+            </button>
+            
+            <!-- Hidden Input stores the camera ID -->
+            <input type="hidden" id="history-cam-select" value="" />
+
+            <div id="history-dropdown" class="hidden absolute top-full left-0 w-full mt-4 bg-white/95 backdrop-blur-xl border border-slate-100 rounded-[2.5rem] shadow-5xl z-50 overflow-hidden animate-slideUp">
+                <div class="py-4">
+                     <div onclick="selectDropdownOption('history', '', 'Toàn bộ hệ thống')" 
+                          class="px-10 py-5 text-[10px] font-black text-slate-700 uppercase hover:bg-danger hover:text-white cursor-pointer transition-all border-b border-slate-50 last:border-0">
+                          Toàn bộ hệ thống
+                     </div>
+                     {% for cam in cameras %}
+                     <div onclick="selectDropdownOption('history', '{{ cam.id }}', '{{ cam.name }}')" 
+                          class="px-10 py-5 text-[10px] font-black text-slate-700 uppercase hover:bg-danger hover:text-white cursor-pointer transition-all border-b border-slate-50 last:border-0">
+                          {{ cam.name }}
+                     </div>
+                     {% endfor %}
+                </div>
             </div>
-            <select id="history-cam-select" onchange="loadHistory()"
-                class="w-full h-16 bg-white border border-slate-100 rounded-[2.5rem] text-[10px] font-black text-slate-700 uppercase pl-16 pr-10 focus:ring-4 focus:ring-danger/10 shadow-2xl transition-all appearance-none cursor-pointer">
-                <option value="">Global System Reports (All)</option>
-                {% for cam in cameras %}<option value="{{ cam.id }}">{{ cam.name }}</option>{% endfor %}
-            </select>
-            <span class="material-symbols-outlined absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none group-hover:text-danger transition-colors">expand_more</span>
         </div>
     </div>
 
@@ -23,11 +40,11 @@
             <table class="w-full text-left border-collapse">
                 <thead>
                     <tr class="bg-slate-50 text-[10px] uppercase font-black tracking-widest text-slate-400">
-                        <th class="px-12 py-8 border-b border-slate-100 italic">Device Designation</th>
-                        <th class="px-12 py-8 border-b border-slate-100">Security ID</th>
-                        <th class="px-12 py-8 border-b border-slate-100 font-mono">Timestamp Correlation</th>
-                        <th class="px-12 py-8 border-b border-slate-100">Engagement Dur.</th>
-                        <th class="px-12 py-8 border-b border-slate-100 text-center">Visual Persistence</th>
+                        <th class="px-12 py-8 border-b border-slate-100 italic">Định danh thiết bị</th>
+                        <th class="px-12 py-8 border-b border-slate-100">ID An ninh</th>
+                        <th class="px-12 py-8 border-b border-slate-100 font-mono">Thời gian ghi nhận</th>
+                        <th class="px-12 py-8 border-b border-slate-100">Thời lượng vi phạm</th>
+                        <th class="px-12 py-8 border-b border-slate-100 text-center">Bằng chứng hình ảnh</th>
                         <th class="px-12 py-8 border-b border-slate-100"></th>
                     </tr>
                 </thead>
@@ -41,8 +58,8 @@
             <div class="h-20 w-20 bg-slate-50 rounded-full flex items-center justify-center text-slate-200 mb-6">
                 <span class="material-symbols-outlined text-4xl">inventory_2</span>
             </div>
-            <p class="text-xs font-black uppercase text-slate-400 tracking-widest leading-none mb-2">No Incident Correlation Found</p>
-            <p class="text-[10px] text-slate-300 font-bold uppercase tracking-widest">Global Security Status: PASSING</p>
+            <p class="text-xs font-black uppercase text-slate-400 tracking-widest leading-none mb-2">Không tìm thấy dữ liệu sự cố</p>
+            <p class="text-[10px] text-slate-300 font-bold uppercase tracking-widest">Trạng thái an ninh toàn cầu: ĐẠT</p>
         </div>
     </div>
 </div>
