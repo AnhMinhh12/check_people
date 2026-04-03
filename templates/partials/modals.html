@@ -1,0 +1,17 @@
+<!-- MODAL COMPONENTS PARTIAL -->
+<div id="image-modal" class="fixed inset-0 bg-slate-900/90 z-[100] hidden flex items-center justify-center p-6 lg:p-20 backdrop-blur-md"
+    onclick="this.classList.add('hidden')">
+    <img id="modal-img" src="#"
+        class="max-w-full max-h-full rounded-4xl shadow-5xl border border-white/20 animate-scale-up"
+        alt="Evidence modal">
+</div>
+
+<style>
+    @keyframes scale-up {
+        from { transform: scale(0.9); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+    }
+    .animate-scale-up {
+        animation: scale-up 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+</style>

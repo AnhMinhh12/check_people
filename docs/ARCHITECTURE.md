@@ -18,8 +18,8 @@
 │
 ├─ src/                  <-- (Mã nguồn chính)
 │  ├─ api/               <-- REST API routes
-│  ├─ core/              <-- Database, Worker Manager, AI Engine, Camera config
-│  └─ services/          <-- Background Threads (AI Worker)
+│  ├─ core/              <-- Database, WorkerManager, AI Engine
+│  └─ services/          <-- Background Threads (AIWorker)
 │
 ├─ models/               <-- (Chứa pre-trained weights)
 │  ├─ yolov8n.pt         
@@ -51,13 +51,12 @@ graph TD
     end
 
     subgraph "Backend Server (Python)"
-        CS[CameraStreamer<br/>Thread riêng biệt]
-        BUF[Frame Buffer<br/>Luôn giữ frame mới nhất]
-        AI[AIEngine<br/>YOLOv8s + Track + Persist]
-        AW[AIWorker<br/>Logic vi phạm + Ghi ảnh]
-        DB[(SQLite Database<br/>Bảng: logs)]
+        WM[WorkerManager<br/>Quản lý cụm Worker]
+        CS[CameraStreamer<br/>Luồng RTSP riêng]
+        AI[AIEngine<br/>YOLOv8n + Track]
+        AW[AIWorker<br/>Logic đơn camera]
+        DB[(SQLite Database<br/>Bảng: cameras, violations)]
         FLASK[Flask + SocketIO<br/>Port 5000]
-        API[REST API<br/>/api/history<br/>/api/config_roi<br/>/api/health]
     end
 
     subgraph "Frontend (Browser)"
@@ -89,15 +88,19 @@ graph TD
 
 ```
 ┌─────────────┐    RTSP     ┌─────────────────┐   Frame    ┌─────────────────┐
-│   Camera    │ ──────────▶ │ CameraStreamer   │ ────────▶  │   Frame Buffer  │
-│   (30fps)   │   TCP/UDP   │ (Thread #1)     │  .copy()   │   (Latest Only) │
-└─────────────┘             └─────────────────┘            └────────┬────────┘
-                                                                    │
-                                                                    ▼
-┌─────────────┐   Emit     ┌─────────────────────────────────────────────────┐
-│ Web Browser │ ◀───────── │                 AIWorker (Thread #2)            │
-│  Dashboard  │  SocketIO  │                                                 │
-└─────────────┘   (5Hz)    │  1. Đọc frame từ Buffer                        │
+│   Camera 1  │ ──────────▶ │  AIWorker #1    │ ────────▶  │   SocketIO Ch 1 │
+└─────────────┘             └─────────────────┘            └─────────────────┘
+                                     │
+┌─────────────┐    RTSP     ┌─────────────────┐   Frame    ┌─────────────────┐
+│   Camera 2  │ ──────────▶ │  AIWorker #2    │ ────────▶  │   SocketIO Ch 2 │
+└─────────────┘             └─────────────────┘            └─────────────────┘
+      ...                            │                             ...
+┌─────────────┐             ┌─────────────────┐            ┌─────────────────┐
+│   Camera N  │ ──────────▶ │  AIWorker #N    │ ────────▶  │   SocketIO Ch N │
+└─────────────┘             └─────────────────┘            └─────────────────┘
+```
+V5.0 sử dụng mô hình **1 Camera = 1 Worker riêng biệt**. Mỗi Worker tự quản lý luồng RTSP, Engine AI và truyền dữ liệu real-time qua SocketIO namespace riêng (`stats_update_{id}`).
+                           │  1. Đọc frame từ Buffer                        │
                            │  2. self.engine.detect_people(frame)            │
                            │     ├── YOLOv8s track(persist=True, classes=[0])│
                            │     ├── Persistence Memory Check (5 frames)    │
@@ -110,7 +113,6 @@ graph TD
                            │  4. Encode JPEG (640x360, quality=50)          │
                            │  5. Emit qua SocketIO mỗi 0.2s                │
                            └─────────────────────────────────────────────────┘
-```
 
 ### 2.2 Luồng Ghi Vi phạm
 
@@ -128,8 +130,8 @@ _save_violation_snapshot(frame, detections)
     
 Khi công nhân quay lại (count_in_roi ≥ 1):
     │
-    └── db_manager.add_violation(message, filename, duration)
-        └── INSERT INTO logs (time, duration, image)
+    └── db_manager.add_violation(camera_id, filename, duration)
+        └── INSERT INTO violations (camera_id, time, duration, image)
 ```
 
 ---
@@ -206,15 +208,26 @@ Khi công nhân quay lại (count_in_roi ≥ 1):
 
 ## 💾 5. Cấu trúc Database
 
-### Bảng `logs` (SQLite)
+### Bảng `cameras` (SQLite)
+Quản lý danh sách thiết bị.
 
 | Cột | Kiểu | Mô tả |
 |---|---|---|
-| `id` | INTEGER PRIMARY KEY | Tự tăng |
-| `time` | TEXT | Thời điểm vi phạm (ISO format) |
-| `description` | TEXT | Nội dung: "Người vận hành rời khỏi vị trí" |
-| `duration` | REAL | Tổng giây vắng mặt (ví dụ: 8.0, 24.1, 33.4) |
-| `image` | TEXT | Tên file ảnh: `violation_20260401_153402.jpg` |
+| `id` | INTEGER | Khóa chính |
+| `name` | TEXT | Tên máy (Máy hàn, Kho bãi...) |
+| `url` | TEXT | Link RTSP |
+| `is_active` | INTEGER | 1 = Đang dùng, 0 = Ngừng (Mặc định: 1) |
+
+### Bảng `violations` (SQLite)
+Lưu nhật ký vi phạm.
+
+| Cột | Kiểu | Mô tả |
+|---|---|---|
+| `id` | INTEGER | Tự tăng |
+| `camera_id` | INTEGER | ID camera (FK) |
+| `time` | TEXT | Thời điểm vi phạm |
+| `duration` | REAL | Tổng giây vắng mặt |
+| `image` | TEXT | Tên file ảnh bằng chứng |
 
 ---
 

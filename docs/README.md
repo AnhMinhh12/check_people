@@ -6,9 +6,9 @@
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
 ![License](https://img.shields.io/badge/License-Internal-gray)
 
-**Nền tảng giám sát an toàn lao động bằng AI** cho môi trường sản xuất công nghiệp. Tự động nhận diện người qua camera RTSP, cảnh báo khi công nhân rời vị trí, ghi ảnh bằng chứng vi phạm.
-
-> **Phiên bản hiện tại**: V4.5 Industrial Edition  
+**Nền tảng giám sát an toàn lao động bằng AI** đa luồng (Multi-Camera), quản lý tập trung và dọn dẹp Database tự động.
+ 
+> **Phiên bản hiện tại**: V5.0 Enterprise Edition
 > **Phần cứng đã test**: Intel Core i7-1355U (Gen 13)  
 > **Camera đã test**: Hikvision RTSP  
 
@@ -18,12 +18,12 @@
 
 | Tính năng | Mô tả |
 |---|---|
-| 🧠 **AI Nhận diện (YOLOv8s)** | Phát hiện người với độ chính xác cao, kể cả khi cúi/quay lưng |
-| 🔒 **Bám dính Đối tượng** | Bộ nhớ đệm 5 frame — Bounding Box không bao giờ bị "nháy" |
-| 📐 **Quét 5 điểm Dọc thân** | Từ chân lên vai, chỉ cần 1/5 điểm trong ROI = AN TOÀN |
-| ⏱️ **Cảnh báo thông minh** | Đệm 1s chống nháy → Cảnh báo RỜI VỊ TRÍ → VI PHẠM sau 5s |
-| 📸 **Ghi bằng chứng** | Tự động chụp ảnh có Bounding Box + ROI, lưu vào Database |
-| 🖥️ **Dashboard Premium** | Giao diện Glassmorphism, 4 tab, HUD cảnh báo toàn màn hình |
+| 🧠 **AI Nhận diện (YOLOv8n)** | Phát hiện người đa luồng, tối ưu hóa cho CPU với bộ nhớ đệm chống nháy |
+| 🛡 **Quản lý Đa Camera** | Hỗ trợ 100+ luồng RTSP đồng thời, cấu hình linh hoạt qua file `.env` |
+| 🧹 **Dọn dẹp DB Tự động** | Cơ chế **Hard Delete** — Tự động xóa camera rác không có trong file cấu hình |
+| ⏱️ **Cảnh báo Thông minh** | Hiển thị vạch ngưỡng vắng mặt trực quan trên thanh tiến trình Dashboard |
+| 📸 **Ghi bằng chứng** | Tự động chụp ảnh kèm Bounding Box, ghi tên Camera vào lịch sử vi phạm |
+| 🖥️ **Dashboard Premium** | Giao diện Glassmorphism V5.0, HUD cảnh báo toàn màn hình, cột Tên Camera trong Nhật ký |
 | ⚙️ **Vẽ ROI trực tiếp** | Chuột trái chấm điểm, chuột phải hoàn tác, có hướng dẫn |
 | 🐋 **Docker & CI/CD** | Push code → Tự động Build + Push Image lên GitHub Registry |
 
@@ -78,19 +78,22 @@ docker run -d --name warden -p 5000:5000 ghcr.io/anhminhh12/check_people:main
 
 ## ⚙️ Cấu hình
 
-### File `.env`
+### File `.env` (Cấu hình đa Camera)
 ```env
-# Camera
-RTSP_URL=rtsp://admin:password@ip_address:554/Streaming/Channels/102
+# Camera 1
+RTSP_URL1=rtsp://admin:password@ip_address_1:554/stream
+CAMERA_NAME1=Máy Hàn 01
 
-# Server
-FLASK_PORT=5000
-FLASK_DEBUG=False
+# Camera 2
+RTSP_URL2=rtsp://admin:password@ip_address_2:554/stream
+CAMERA_NAME2=Kho Bãi
 
-# AI
-MODEL_PATH=yolov8s.pt          # yolov8n.pt (nhanh) | yolov8s.pt (chính xác)
-CONFIDENCE_THRESHOLD=0.15       # Ngưỡng tin cậy (0.15 = nhạy, 0.5 = chắc chắn)
-ALARM_DELAY_SECONDS=5.0         # Giây vắng mặt trước khi ghi vi phạm
+# ... hỗ trợ tới RTSP_URL100
+
+# AI Settings
+MODEL_PATH=models/yolov8n.pt     # Nâng cấp lên Nano cho hệ thống đa luồng
+CONFIDENCE_THRESHOLD=0.15
+ALARM_DELAY_SECONDS=5.0
 ```
 
 ### Các thông số nâng cao (trong code)

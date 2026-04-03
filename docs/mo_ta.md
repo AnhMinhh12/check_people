@@ -8,9 +8,15 @@
 
 ## 📌 1. Giới thiệu Tổng quan
 
-**Sentinel Warden AI** là hệ thống giám sát an toàn lao động sử dụng trí tuệ nhân tạo (AI), được thiết kế chuyên biệt cho môi trường dây chuyền sản xuất công nghiệp. Hệ thống hoạt động **24/7 liên tục**, tự động nhận diện công nhân qua camera RTSP và cảnh báo ngay lập tức khi phát hiện công nhân rời khỏi vị trí làm việc (Vùng An Toàn — ROI) quá thời gian quy định.
+AI vẫn tiếp tục nhận diện và ghi bản ghi vi phạm liên tục.
 
-**Đặc điểm quan trọng**: Hệ thống AI chạy hoàn toàn **phía Server (Backend)**. Dù người giám sát đóng trình duyệt, chuyển tab, hay tắt màn hình — AI vẫn tiếp tục nhận diện và ghi log vi phạm liên tục.
+### 2. Quản lý Đa Camera (Multi-Camera Manager)
+V5.0 giới thiệu khả năng quản lý động danh sách camera qua biến môi trường:
+- **Quét biến môi trường**: Tự động nhận diện cặp `RTSP_URL{i}` và `CAMERA_NAME{i}` (từ i=1 đến 100).
+- **Auto-Sync**: Tự động thêm camera mới vào DB hoặc cập nhật tên camera nếu link RTSP cũ đã tồn tại.
+- **Hard Delete (Dọn dẹp)**: Xóa vĩnh viễn các camera trong DB không có khai báo trong `.env` để bảo đảm Dashboard luôn sạch sẽ.
+
+### 3. Log vi phạm (Violation Logging)
 
 ---
 
@@ -133,19 +139,26 @@ check_person/
 
 ### 6.1 File `.env`
 ```env
-RTSP_URL=rtsp://admin:password@ip_address:554/stream
-FLASK_PORT=5000
-FLASK_DEBUG=False
-MODEL_PATH=yolov8s.pt
+# Cấu hình cụm Camera
+RTSP_URL1=rtsp://admin:password@192.168.1.10:554/stream
+CAMERA_NAME1=Máy Hàn 01
+
+RTSP_URL2=rtsp://admin:password@192.168.1.11:554/stream
+CAMERA_NAME2=Khu Vực Bốc Xếp
+
+# Thông số AI
+MODEL_PATH=models/yolov8n.pt
 CONFIDENCE_THRESHOLD=0.15
 ALARM_DELAY_SECONDS=5.0
 ```
 
-### 6.2 Các thông số quan trọng trong code
+### 6.2 Các thông số quan trọng
 
 | Thông số | Giá trị | Vị trí | Ý nghĩa |
 |---|---|---|---|
-| `CONFIDENCE_THRESHOLD` | `0.15` | `.env` + `ai_engine.py` | Ngưỡng tin cậy tối thiểu để AI xác nhận "đây là người". Thấp = nhạy hơn nhưng dễ báo nhầm |
+| `RTSP_URL{i}` | `...` | `.env` | Link stream RTSP của Cam thứ i |
+| `CAMERA_NAME{i}` | `...` | `.env` | Tên hiển thị của Cam thứ i |
+| `CONFIDENCE_THRESHOLD` | `0.15` | `.env` | Ngưỡng tin cậy tối thiểu của AI |
 | `max_memory_frames` | `5` | `ai_engine.py` dòng 33 | Số frame giữ vết khi mất dấu người (chống nháy). Tăng = ổn định hơn nhưng phản ứng chậm hơn |
 | `alarm_delay` | `5.0` | `app.py` dòng 21 | Số giây vắng mặt trước khi ghi nhận VI PHẠM |
 | Bộ đệm trạng thái | `1.0` giây | `ai_worker.py` dòng 76 | Thời gian chờ xác nhận sau khi mất dấu. Dưới 1s = vẫn AN TOÀN |
@@ -160,11 +173,11 @@ ALARM_DELAY_SECONDS=5.0
 | Method | Endpoint | Mô tả |
 |---|---|---|
 | `GET` | `/` | Trang Dashboard chính |
-| `GET` | `/api/history` | Lấy 50 vi phạm gần nhất (JSON) |
-| `GET` | `/api/health` | Kiểm tra sức khỏe hệ thống (`{"status": "ok"}`) |
-| `POST` | `/api/config_roi` | Lưu tọa độ ROI mới (`{"points": [[x,y], ...]}`) |
-| `GET` | `/violations/<filename>` | Truy cập ảnh bằng chứng vi phạm |
-| WebSocket | `stats_update` | Sự kiện real-time: Trạng thái, FPS, ảnh live, tọa độ người, ROI |
+| `GET` | `/api/history` | Lấy 50 vi phạm gần nhất (Bao gồm `camera_name`) |
+| `GET` | `/api/health` | Kiểm tra sức khỏe hệ thống |
+| `POST` | `/api/config_roi` | Lưu tọa độ ROI mới theo `camera_id` |
+| `GET` | `/violations/<filename>` | Truy cập ảnh bằng chứng |
+| `WebSocket` | `stats_update_{id}` | Luồng dữ liệu real-time riêng cho từng Camera |
 
 ---
 

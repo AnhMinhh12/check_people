@@ -1,4 +1,4 @@
-# Image Python 3.11 Slim - Hiệu năng cao & Kích thước nhẹ cho môi trường V4.0
+# Image Python 3.11 Slim - Hiệu năng cao & Tối ưu Đa Camera (V5.0 Enterprise)
 FROM python:3.11-slim
 
 # Ngăn Python tạo file .pyc và bật log trực tiếp ra console

@@ -1,7 +1,8 @@
 services:
   warden-app:
-    build: .
-    container_name: sentinel-warden-v5
+    # Sử dụng bản v5.0 Enterprise chuẩn từ GitHub (Đã Pull)
+    image: ghcr.io/anhminhh12/check_people:main
+    container_name: sentinel-warden-v5-enterprise
     restart: always
     ports:
       - "5000:5000"

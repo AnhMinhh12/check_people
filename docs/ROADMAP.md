@@ -2,7 +2,7 @@
 
 > **Phiên bản hiện tại**: V5.0 (Enterprise Edition)  
 > **Ngày cập nhật**: 03/04/2026  
-> **Trạng thái**: Đã hoàn thành tải cấu trúc dự án. Đang vận hành ổn định mô hình Đa Camera.
+> **Trạng thái**: Đã vận hành ổn định mô hình Đa Camera và Đồng bộ DB tự động.
 
 ---
 
@@ -30,16 +30,15 @@
 | Bộ nhớ đệm chống nháy (Persistence) | ✅ Hoàn thành | Giữ vết 5 khung hình, loại bỏ "ghost box" |
 | Vẽ vùng an toàn ROI trên Web | ✅ Hoàn thành | Đa giác tùy chỉnh, chuột trái/phải |
 | Cảnh báo HUD toàn màn hình | ✅ Hoàn thành | Viền đỏ nhấp nháy khi vi phạm |
-| Hỗ trợ nhiều Camera (Mới V4.5) | ✅ Hoàn thành | Chạy đa luồng song song |
-| Giao diện Grid Dashboard (Mới V4.5) | ✅ Hoàn thành | Lưới tổng quan và trang xem chi tiết |
+| Hỗ trợ nhiều Camera (Mới V5.0) | ✅ Hoàn thành | Chạy đa luồng song song thông qua WorkerManager |
+| Tự động đồng bộ Database (Mới V5.0)| ✅ Hoàn thành | Cơ chế Auto-Sync và Hard Delete theo file .env |
 | Quy hoạch cấu trúc Enterprise (Mới V5.0)| ✅ Hoàn thành | Tách biệt Source (`src/`), Database (`data/`), Model (`models/`) |
 
 ### 1.2 Hạn chế hiện tại ⚠️
 | Hạn chế | Mức độ | Ảnh hưởng |
 |---|---|---|
-| Chỉ hỗ trợ 1 Camera duy nhất | 🔴 Nghiêm trọng | Không giám sát được nhiều vị trí |
 | Chạy trên CPU (không có GPU) | 🟡 Trung bình | FPS bị giới hạn ở mức 10-15 |
-| Database SQLite (đơn luồng) | 🟡 Trung bình | Không phù hợp khi có >10 camera ghi đồng thời |
+| Database SQLite | 🟡 Trung bình | Cần chuyển sang PostgreSQL khi có >20 camera |
 | Không có hệ thống phân quyền | 🟡 Trung bình | Ai cũng có thể truy cập Dashboard |
 | Không có thông báo đẩy (Push Notification) | 🟠 Nhẹ | Phải ngồi trực Dashboard mới biết vi phạm |
 | Chưa có báo cáo thống kê tự động | 🟠 Nhẹ | Dữ liệu tab Phân Tích đang là mẫu cứng |
@@ -326,11 +325,11 @@
 
 ## 📅 8. Lộ trình Theo giai đoạn
 
-### Phase 1 — Ổn định & Hoàn thiện (1-2 tháng)
-- [ ] Tích hợp Auto-Reconnect cho Camera (Tự kết nối lại khi mất tín hiệu)
-- [ ] Kết nối dữ liệu thực cho tab Phân Tích (Chart.js)
-- [ ] Thêm Telegram Bot cảnh báo vi phạm
-- [ ] Bổ sung tính năng tìm kiếm/lọc nhật ký vi phạm
+### Phase 1 — Ổn định & Hoàn thiện (Đã hoàn thành ✅)
+- [x] Thiết kế kiến trúc Multi-Camera WorkerManager
+- [x] Tích hợp cơ chế dọn dẹp Database (Hard Delete)
+- [x] Hiển thị ngưỡng báo động trực quan trên Dashboard
+- [x] Bổ sung cột Tên Camera vào Nhật ký vi phạm
 - [ ] Tối ưu OpenVINO cho Intel iGPU (thử lại khi Ultralytics cập nhật)
 
 ### Phase 2 — Mở rộng Đa Camera (2-4 tháng)

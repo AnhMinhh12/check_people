@@ -1,354 +1,24 @@
-<!DOCTYPE html>
-<html class="dark" lang="vi">
+{% extends 'layouts/base.html' %}
 
-<head>
-    <meta charset="utf-8" />
-    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-    <title>Warden AI Enterprise | Multi-Camera Edition</title>
-    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;700&display=swap"
-        rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@400&display=swap"
-        rel="stylesheet" />
-    <script>
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    colors: {
-                        "primary": "#ffb693",
-                        "tertiary": "#00daf3",
-                        "error": "#ffb4ab",
-                        "background": "#0a0e14",
-                        "surface": "#10141a",
-                        "surface-container": "#1c2026"
-                    },
-                    fontFamily: {
-                        "headline": ["'Space Grotesk'", "sans-serif"],
-                        "body": ["Inter", "sans-serif"]
-                    }
-                }
-            }
-        };
-    </script>
-    <style>
-        .tab-content {
-            display: none;
-        }
+{% block title %}Dashboard | Warden AI Enterprise{% endblock %}
 
-        .tab-content.active {
-            display: block;
-            animation: fadeIn 0.3s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-            }
-
-            to {
-                opacity: 1;
-            }
-        }
-
-        .camera-card {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            cursor: pointer;
-        }
-
-        .camera-card:hover {
-            transform: translateY(-4px);
-            border-color: #00daf3;
-        }
-
-        .camera-card.active {
-            border-color: #00daf3;
-            background: rgba(0, 218, 243, 0.05);
-        }
-
-        .glass-panel {
-            background: rgba(16, 20, 26, 0.8);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        ::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: #1c2026;
-            border-radius: 10px;
-        }
-    </style>
-</head>
-
-<body class="bg-background text-[#dfe2eb] font-body selection:bg-tertiary/30">
-    <!-- SIDEBAR -->
-    <aside
-        class="h-screen w-20 lg:w-64 left-0 fixed bg-surface flex flex-col py-6 border-r border-white/5 z-50 transition-all">
-        <div class="px-6 mb-10 flex flex-col items-center lg:items-start text-center lg:text-left">
-            <h1 class="text-xl font-black text-white font-headline hidden lg:block tracking-tighter uppercase">Warden AI
-            </h1>
-            <span class="lg:hidden material-symbols-outlined text-tertiary text-3xl">security</span>
-            <p class="text-[10px] uppercase tracking-[0.2em] text-tertiary font-bold opacity-80 hidden lg:block">
-                Enterprise v4.0</p>
-        </div>
-        <nav class="flex-1 space-y-1">
-            <button onclick="showTab('dashboard')" id="nav-dashboard"
-                class="w-full px-6 py-4 text-primary bg-surface-container border-l-4 border-primary flex items-center justify-center lg:justify-start">
-                <span class="material-symbols-outlined lg:mr-3 text-xl">grid_view</span>
-                <span class="text-sm font-black uppercase tracking-tighter hidden lg:block">Dashboard</span>
-            </button>
-            <button onclick="showTab('analysis')" id="nav-analysis"
-                class="w-full px-6 py-4 text-slate-500 hover:bg-surface-container/30 border-l-4 border-transparent flex items-center justify-center lg:justify-start">
-                <span class="material-symbols-outlined lg:mr-3 text-xl">analytics</span>
-                <span class="text-sm font-black uppercase tracking-tighter hidden lg:block">Phân Tích</span>
-            </button>
-            <button onclick="showTab('history')" id="nav-history"
-                class="w-full px-6 py-4 text-slate-500 hover:bg-surface-container/30 border-l-4 border-transparent flex items-center justify-center lg:justify-start">
-                <span class="material-symbols-outlined lg:mr-3 text-xl">history</span>
-                <span class="text-sm font-black uppercase tracking-tighter hidden lg:block">Nhật Ký</span>
-            </button>
-        </nav>
-    </aside>
-
-    <main class="ml-20 lg:ml-64 min-h-screen">
-        <header
-            class="sticky top-0 bg-surface/80 backdrop-blur-xl flex justify-between items-center px-6 lg:px-10 py-6 border-b border-white/5 z-40">
-            <div class="flex flex-col">
-                <span id="tab-title" class="text-xl font-black uppercase tracking-widest text-white font-headline">Hệ
-                    Thống Camera</span>
-                <span id="focused-cam-name" class="text-[10px] font-bold text-tertiary uppercase mt-1">Đang xem: Trực
-                    tiếp</span>
-            </div>
-            <div class="flex items-center gap-4">
-                <div class="flex items-center gap-2 px-4 py-2 bg-slate-900/50 rounded-full border border-white/5">
-                    <span class="h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
-                    <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Server Status:
-                        Online</span>
-                </div>
-            </div>
-        </header>
-
-        <!-- DASHBOARD TAB -->
-        <div id="tab-dashboard" class="tab-content active p-6 lg:p-10 space-y-8">
-            <div id="focused-view" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fadeIn">
-                <div class="lg:col-span-8 space-y-4">
-                    <div
-                        class="relative aspect-video bg-black rounded-[32px] overflow-hidden border border-white/5 shadow-2xl group">
-                        <img id="video-feed" src="" class="w-full h-full object-contain" alt="Live Feed" />
-                        <canvas id="dashboard-canvas"
-                            class="absolute top-0 left-0 w-full h-full pointer-events-none"></canvas>
-                        <div class="absolute top-6 left-6 flex gap-2">
-                            <span
-                                class="px-3 py-1 bg-black/60 backdrop-blur-md rounded-full text-[10px] font-black text-tertiary border border-tertiary/20">CAM:
-                                <span id="active-cam-id">-</span></span>
-                        </div>
-                    </div>
-                    <div
-                        class="flex justify-between items-center bg-surface p-4 rounded-2xl border border-white/5 shadow-lg">
-                        <div class="flex gap-2 lg:gap-4">
-                            <button onclick="toggleROIConfig()"
-                                class="px-4 py-2 bg-tertiary/10 text-tertiary rounded-xl text-xs font-bold border border-tertiary/20 hover:bg-tertiary/30 transition-all flex items-center gap-2">
-                                <span class="material-symbols-outlined text-sm">edit_square</span> Cấu hình ROI
-                            </button>
-                            <button onclick="closeFocusView()"
-                                class="px-4 py-2 bg-white/5 text-slate-400 rounded-xl text-xs font-bold border border-white/5 hover:bg-white/10 exit-focus">
-                                Quay lại danh sách
-                            </button>
-                        </div>
-                        <div class="flex items-center gap-6">
-                            <div class="text-right hidden sm:block">
-                                <p class="text-[9px] uppercase font-black text-slate-500">FPS AI</p>
-                                <p id="fps-display" class="text-lg font-headline font-black text-white">0.0</p>
-                            </div>
-                            <div class="text-right">
-                                <p class="text-[9px] uppercase font-black text-slate-500">Người trong vùng</p>
-                                <p id="worker-count" class="text-lg font-headline font-black text-tertiary">0</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <!-- SIDE INFO DASH -->
-                <div class="lg:col-span-4 space-y-6">
-                    <div class="bg-surface p-6 rounded-3xl border border-white/5 shadow-xl">
-                        <h3 class="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-4 ">Trạng thái
-                            Giám sát</h3>
-                        <div id="status-display"
-                            class="text-2xl font-headline font-black text-white uppercase italic tracking-tighter">AN
-                            TOÀN</div>
-                        <div class="mt-4 h-2 w-full bg-black/50 rounded-full overflow-hidden">
-                            <div id="time-bar" class="bg-red-500 h-full w-0 transition-all duration-300"></div>
-                        </div>
-                        <div class="mt-3 flex justify-between items-center">
-                            <p class="text-[10px] text-slate-500 font-bold uppercase">Vắng mặt: <span id="missing-time"
-                                    class="text-red-500">0.0s</span></p>
-                            <p class="text-[10px] text-slate-500 font-bold uppercase">Ngưỡng: <span id="threshold-label"
-                                    class="text-slate-400">--s</span></p>
-                        </div>
-                    </div>
-                    <!-- ROI PANEL -->
-                    <div id="roi-config-panel"
-                        class="hidden bg-surface p-6 rounded-3xl border-2 border-tertiary/20 shadow-2xl animate-fadeIn">
-                        <h3 class="text-xs font-black uppercase text-tertiary mb-4">Cấu hình Vùng An Toàn</h3>
-                        <div
-                            class="relative bg-black rounded-xl overflow-hidden aspect-video border border-white/5 mb-4">
-                            <img id="roi-bg" src="" class="w-full h-full object-contain opacity-40 shadow-inner"
-                                alt="ROI Background" />
-                            <canvas id="roi-canvas"
-                                class="absolute top-0 left-0 w-full h-full cursor-crosshair"></canvas>
-                        </div>
-                        <div class="flex gap-2">
-                            <button onclick="saveROI()"
-                                class="flex-1 py-3 bg-tertiary text-black text-[10px] font-black uppercase rounded-lg shadow-lg hover:brightness-110 active:scale-95 transition-all">Lưu
-                                Cấu Hình</button>
-                            <button onclick="clearROI()"
-                                class="flex-1 py-3 bg-white/5 text-white text-[10px] font-bold uppercase rounded-lg hover:bg-white/10 transition-all">Xóa
-                                Hết</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- GRID MODE -->
-            <div id="grid-view" class="space-y-6 animate-fadeIn">
-                <div
-                    class="flex justify-between items-center bg-surface/50 p-6 rounded-3xl border border-white/5 backdrop-blur-md">
-                    <h2 class="text-lg font-black uppercase italic tracking-tighter text-white">Toàn Cảnh Hệ Thống</h2>
-                    <div class="flex gap-4">
-                        <input type="text" placeholder="Tìm kiếm camera..."
-                            class="bg-background border-white/5 rounded-xl text-xs px-4 py-2 focus:ring-tertiary focus:border-tertiary ring-offset-background transition-all">
-                    </div>
-                </div>
-                <div id="camera-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 px-1">
-                    {% for cam in cameras %}
-                    <div data-id="{{ cam.id }}" data-name="{{ cam.name }}"
-                        onclick="focusCamera(this.dataset.id, this.dataset.name)"
-                        class="camera-card bg-surface p-6 rounded-3xl border border-white/5 relative overflow-hidden group shadow-lg">
-                        <div
-                            class="absolute top-0 right-0 w-24 h-24 bg-tertiary/5 rounded-full -mr-12 -mt-12 group-hover:bg-tertiary/20 transition-all duration-500">
-                        </div>
-                        <div class="relative z-10">
-                            <div class="flex justify-between items-start mb-4">
-                                <span
-                                    class="p-2 bg-slate-900/50 rounded-xl text-tertiary material-symbols-outlined shadow-inner">videocam</span>
-                                <span id="grid-status-{{ cam.id }}"
-                                    class="px-2 py-1 text-[8px] font-black rounded-md border transition-all">--</span>
-                            </div>
-                            <h3
-                                class="font-headline font-black text-white group-hover:text-tertiary transition-colors truncate pr-2">
-                                {{ cam.name }}</h3>
-                            <p class="text-[9px] text-slate-500 uppercase font-bold mt-1 opacity-60">{{ cam.group }}</p>
-
-                            <div class="mt-8 flex justify-between items-end border-t border-white/5 pt-4">
-                                <div>
-                                    <p class="text-[8px] text-slate-500 uppercase font-black">Người</p>
-                                    <p id="grid-count-{{ cam.id }}" class="text-xl font-headline font-black text-white">
-                                        0</p>
-                                </div>
-                                <div class="text-right">
-                                    <p id="grid-label-{{ cam.id }}"
-                                        class="text-[9px] font-black text-tertiary uppercase italic">SAFE</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-
-        <!-- ANALYSIS TAB -->
-        <div id="tab-analysis" class="tab-content p-6 lg:p-10 space-y-8 max-w-7xl mx-auto">
-            <div class="flex flex-col lg:flex-row justify-between gap-6 border-b border-white/5 pb-8">
-                <div class="space-y-1">
-                    <h2
-                        class="text-3xl font-headline font-black italic tracking-tighter text-white uppercase tracking-widest">
-                        Analytics Dashboard</h2>
-                    <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Báo cáo hiệu suất vận hành
-                        theo cam</p>
-                </div>
-                <div>
-                    <select id="analysis-cam-select" onchange="updateAnalysis()"
-                        class="bg-surface border-white/5 rounded-2xl text-[10px] font-black text-tertiary uppercase pr-10 focus:ring-tertiary min-w-[240px] shadow-2xl">
-                        <option value="">Toàn bộ Camera</option>
-                        {% for cam in cameras %}<option value="{{ cam.id }}">{{ cam.name }}</option>{% endfor %}
-                    </select>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div
-                    class="glass-panel p-8 rounded-3xl border-b-4 border-green-500 shadow-2xl transition-transform hover:scale-[1.02]">
-                    <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Tỷ lệ trực vị trí
-                    </p>
-                    <div id="analytics-uptime" class="text-5xl font-headline font-black text-white">98.2%</div>
-                </div>
-                <div
-                    class="glass-panel p-8 rounded-3xl border-b-4 border-red-500 shadow-2xl transition-transform hover:scale-[1.02]">
-                    <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Thời gian vắng mặt
-                    </p>
-                    <div id="analytics-duration" class="text-5xl font-headline font-black text-white">--m</div>
-                </div>
-                <div
-                    class="glass-panel p-8 rounded-3xl border-b-4 border-amber-500 shadow-2xl transition-transform hover:scale-[1.02]">
-                    <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Tổng cộng vi phạm
-                    </p>
-                    <div id="analytics-count" class="text-5xl font-headline font-black text-white">--</div>
-                </div>
-            </div>
-
-            <div class="bg-surface p-8 rounded-[40px] border border-white/5 shadow-2xl">
-                <canvas id="analysis-chart" class="w-full h-96"></canvas>
-            </div>
-        </div>
-
-        <!-- HISTORY TAB -->
-        <div id="tab-history" class="tab-content p-6 lg:p-10 max-w-7xl mx-auto">
-            <div class="bg-surface rounded-[40px] border border-white/5 overflow-hidden shadow-2xl">
-                <div
-                    class="p-8 border-b border-white/5 flex flex-wrap justify-between bg-white/[0.02] items-center gap-4">
-                    <h3 class="font-black uppercase tracking-[0.2em] text-xs">Phát hiện sự cố & Vi phạm</h3>
-                    <select id="history-cam-select" onchange="loadHistory()"
-                        class="bg-background border-none rounded-xl text-[10px] font-black text-tertiary uppercase hover:bg-slate-900 transition-all px-6 py-2 shadow-inner">
-                        <option value="">Tất cả Camera</option>
-                        {% for cam in cameras %}<option value="{{ cam.id }}">{{ cam.name }}</option>{% endfor %}
-                    </select>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left">
-                        <thead class="bg-black/20 text-[10px] uppercase tracking-widest text-slate-500 font-extrabold">
-                            <tr>
-                                <th class="px-10 py-6">Tên Camera</th>
-                                <th class="px-10 py-6">Camera ID</th>
-                                <th class="px-10 py-6 font-mono">Timestamp</th>
-                                <th class="px-10 py-6">Duration</th>
-                                <th class="px-10 py-6 text-center">Snapshot Evidence</th>
-                                <th class="px-10 py-6"></th>
-                            </tr>
-                        </thead>
-                        <tbody id="history-table" class="divide-y divide-white/[0.03] text-[13px]"></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </main>
-
-    <!-- UI COMPONENTS -->
-    <div id="image-modal" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-6 lg:p-20"
-        onclick="this.classList.add('hidden')">
-        <img id="modal-img" src="#"
-            class="max-w-full max-h-full rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/10"
-            alt="Evidence modal">
+{% block content %}
+    <!-- MAIN DASHBOARD CONTENT -->
+    <div id="tab-dashboard" class="tab-content active space-y-12">
+        {% include 'components/focused_view.html' %}
+        {% include 'components/dashboard_grid.html' %}
     </div>
 
+    <!-- ANALYSIS CONTENT -->
+    {% include 'components/analysis_content.html' %}
+
+    <!-- HISTORY CONTENT -->
+    {% include 'components/history_content.html' %}
+{% endblock %}
+
+{% block scripts %}
     <script id="cameras-data" type="application/json">{{ cameras|tojson|safe }}</script>
 
-    <!-- MAIN SCRIPT -->
     <script>
         const ALL_CAMERAS = JSON.parse(document.getElementById('cameras-data').textContent);
         const socket = io();
@@ -357,32 +27,40 @@
         let selectedROIPoints = [];
         let analyticsChartInstance = null;
 
-        /** CHUYỂN TAB CHÍNH */
+        /** TAB MANAGEMENT */
         function showTab(id) {
             currentTab = id;
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.getElementById('tab-' + id).classList.add('active');
 
-            document.querySelectorAll('aside button').forEach(btn => {
-                btn.classList.remove('text-primary', 'bg-surface-container', 'border-l-4', 'border-primary');
-                btn.classList.add('text-slate-500', 'border-transparent');
+            // Update Navigation UI
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('active-nav', 'text-white');
+                btn.classList.add('text-slate-400');
             });
             const activeBtn = document.getElementById('nav-' + id);
-            if (activeBtn) activeBtn.classList.add('text-primary', 'bg-surface-container', 'border-l-4', 'border-primary');
+            if (activeBtn) {
+                activeBtn.classList.add('active-nav', 'text-white');
+                activeBtn.classList.remove('text-slate-400');
+            }
+
+            // Global Title Update
+            const titleMap = { 'dashboard': 'Overview Dashboard', 'analysis': 'Intelligence Report', 'history': 'Incident Evidence' };
+            document.getElementById('tab-title').innerText = titleMap[id] || 'WARDEN AI';
 
             if (id === 'history') loadHistory();
             if (id === 'analysis') updateAnalysis();
         }
 
-        /** XỬ LÝ FOCUS CHI TIẾT CAMERA */
+        /** CAMERA FOCUS LOGIC */
         function focusCamera(id, name) {
             focusedCamId = Number(id);
             document.getElementById('grid-view').classList.add('hidden');
             document.getElementById('focused-view').classList.remove('hidden');
-            document.getElementById('focused-cam-name').innerText = `ĐANG XEM: ${name}`;
-            document.getElementById('active-cam-id').innerText = id;
+            document.getElementById('focused-cam-name').innerText = `LIVE FEED: ${name.toUpperCase()}`;
+            document.getElementById('active-cam-id').innerText = `CAM-${String(id).padStart(2, '0')}`;
 
-            // Xóa hết listener cũ và tập trung listener mới
+            // Clean previous listeners and focus on this one
             socket.off(`stats_update_${id}`).on(`stats_update_${id}`, (data) => {
                 if (currentTab !== 'dashboard') return;
                 performDashboardUpdate(data);
@@ -394,14 +72,13 @@
             focusedCamId = null;
             document.getElementById('focused-view').classList.add('hidden');
             document.getElementById('grid-view').classList.remove('hidden');
-            document.getElementById('focused-cam-name').innerText = "ĐANG XEM: TRỰC TIẾP";
+            document.getElementById('focused-cam-name').innerText = "GLOBAL DASHBOARD LIVE FEED";
             document.getElementById('roi-config-panel').classList.add('hidden');
             document.getElementById('video-feed').src = "";
-
-            // Gán lại các listeners nhẹ cho toàn grid
-            setupGlobalListeners();
+            setupGlobalListeners(); // Re-attach light listeners for grid
         }
 
+        /** DATA UPDATES */
         function performGridCardUpdate(id, data) {
             const countEl = document.getElementById(`grid-count-${id}`);
             const labelEl = document.getElementById(`grid-label-${id}`);
@@ -410,11 +87,15 @@
             if (countEl) countEl.innerText = data.workers_in_roi;
             if (labelEl) {
                 labelEl.innerText = data.status;
-                labelEl.className = `text-[10px] font-black uppercase italic ${data.status === 'AN TOÀN' ? 'text-tertiary' : 'text-red-400'}`;
+                labelEl.className = `px-4 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest border shadow-sm transition-all ${
+                    data.status === 'AN TOÀN' ? 'bg-secondary/10 text-secondary border-secondary/10' : 'bg-danger/10 text-danger border-danger/10 animate-pulse'
+                }`;
             }
             if (statusEl) {
-                statusEl.innerText = data.camera_connected ? 'LIVE' : 'LOST';
-                statusEl.className = `px-2 py-1 text-[8px] font-black rounded-md border ${data.camera_connected ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`;
+                statusEl.innerText = data.camera_connected ? 'LIVE CONNECTION' : 'SIGNAL LOST';
+                statusEl.className = `px-4 py-1.5 text-[9px] font-black rounded-full border transition-all shadow-sm ${
+                    data.camera_connected ? 'bg-secondary text-white border-secondary' : 'bg-slate-100 text-slate-400 border-slate-200'
+                }`;
             }
         }
 
@@ -429,65 +110,97 @@
 
             document.getElementById('worker-count').innerText = data.workers_in_roi;
             document.getElementById('fps-display').innerText = data.fps;
-            document.getElementById('status-display').innerText = data.status;
-            document.getElementById('status-display').style.color = data.status === 'AN TOÀN' ? '#00daf3' : '#ffb4ab';
-            document.getElementById('missing-time').innerText = data.missing_time + 's';
+            const statusDisp = document.getElementById('status-display');
+            statusDisp.innerText = data.status;
+            statusDisp.style.borderColor = data.status === 'AN TOÀN' ? '#10b981' : '#ef4444';
+            statusDisp.style.color = data.status === 'AN TOÀN' ? '#10b981' : '#ef4444';
             
-            // Cập nhật thanh tiến trình theo ngưỡng thực tế
+            document.getElementById('missing-time').innerText = data.missing_time + 's';
             const threshold = data.alarm_threshold || 5.0;
             document.getElementById('threshold-label').innerText = threshold + 's';
-            document.getElementById('time-bar').style.width = Math.min((data.missing_time / threshold) * 100, 100) + '%';
+            const bar = document.getElementById('time-bar');
+            bar.style.width = Math.min((data.missing_time / threshold) * 100, 100) + '%';
+            bar.className = data.status === 'AN TOÀN' ? 'bg-primary h-full transition-all duration-300 shadow-[0_0_15px_rgba(59,130,246,0.3)]' : 'bg-danger h-full transition-all duration-300 shadow-[0_0_15px_rgba(239,68,68,0.3)]';
 
-            // Vẽ lớp Overlay (ROI & Detections)
+            // Overlay Drawing
             const mainCanvas = document.getElementById('dashboard-canvas');
             if (mainCanvas && feedImg && feedImg.clientWidth > 0) {
                 mainCanvas.width = feedImg.clientWidth;
                 mainCanvas.height = feedImg.clientHeight;
                 const mCtx = mainCanvas.getContext('2d');
                 mCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+                const sx = mainCanvas.width / 640; const sy = mainCanvas.height / 360;
 
-                const sx = mainCanvas.width / 640;
-                const sy = mainCanvas.height / 360;
-
-                // 1. ROI Polygons
                 if (data.roi_on_server && data.roi_on_server.length > 0) {
-                    mCtx.strokeStyle = data.status === 'AN TOÀN' ? '#22c55e' : '#ef4444';
-                    mCtx.lineWidth = 3; mCtx.beginPath();
+                    mCtx.strokeStyle = data.status === 'AN TOÀN' ? '#10b981' : '#ef4444';
+                    mCtx.lineWidth = 4; mCtx.beginPath();
                     data.roi_on_server.forEach((point, idx) => {
                         const px = point[0] * sx; const py = point[1] * sy;
                         idx === 0 ? mCtx.moveTo(px, py) : mCtx.lineTo(px, py);
                     });
                     mCtx.closePath(); mCtx.stroke();
+                    mCtx.fillStyle = data.status === 'AN TOÀN' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.1)';
+                    mCtx.fill();
                 }
 
-                // 2. Person Boxes
                 if (data.latest_detections) {
                     data.latest_detections.forEach(det => {
                         const box = det.box;
                         const bx1 = box[0] * sx; const by1 = box[1] * sy;
                         const bx2 = box[2] * sx; const by2 = box[3] * sy;
-                        mCtx.strokeStyle = det.is_safe ? '#22c55e' : '#eab308';
-                        mCtx.lineWidth = 3; mCtx.strokeRect(bx1, by1, bx2 - bx1, by2 - by1);
+                        mCtx.strokeStyle = det.is_safe ? '#10b981' : '#f59e0b';
+                        mCtx.lineWidth = 3;
+                        mCtx.beginPath();
+                        mCtx.roundRect(bx1, by1, bx2 - bx1, by2 - by1, 8);
+                        mCtx.stroke();
+                        // Sublabel
+                        mCtx.fillStyle = det.is_safe ? '#10b981' : '#f59e0b';
+                        mCtx.font = 'bold 10px Inter';
+                        mCtx.fillText(det.is_safe ? 'SECURE' : 'UNAUTHORIZED', bx1, by1 - 5);
                     });
                 }
             }
         }
 
-        /** XỬ LÝ LỊCH SỬ VI PHẠM */
+        /** HISTORY HANDLER */
         async function loadHistory() {
-            const camIdValue = document.getElementById('history-cam-select').value;
+            const camId = document.getElementById('history-cam-select').value;
             const historyBody = document.getElementById('history-table');
+            const emptyState = document.getElementById('history-empty');
             try {
-                const response = await fetch(`/api/history?camera_id=${camIdValue}`);
-                const violationsData = await response.json();
-                historyBody.innerHTML = violationsData.map(v => `
-                    <tr class="hover:bg-white/5 transition-colors border-b border-white/5">
-                        <td class="px-10 py-6 font-black text-white uppercase">${v.camera_name || 'N/A'}</td>
-                        <td class="px-10 py-6 font-bold text-tertiary/60">#CAM ${v.camera_id}</td>
-                        <td class="px-10 py-6 text-slate-400 font-mono text-[11px]">${v.time}</td>
-                        <td class="px-10 py-6"><span class="px-3 py-1 bg-red-500/10 text-red-500 rounded-full text-[10px] font-black border border-red-500/20">${v.duration}s</span></td>
-                        <td class="px-10 py-6 text-center"><img src="/violations/${v.image}" class="h-12 mx-auto rounded-xl hover:scale-[1.8] transition-all cursor-pointer shadow-lg" onclick="openEvidenceModal('/violations/${v.image}')"/></td>
-                        <td class="px-10 py-6 text-right"><button onclick="openEvidenceModal('/violations/${v.image}')" class="material-symbols-outlined text-slate-600 hover:text-tertiary transition-colors">image_search</button></td>
+                const response = await fetch(`/api/history?camera_id=${camId}`);
+                const violations = await response.json();
+                
+                if (violations.length === 0) {
+                    historyBody.innerHTML = '';
+                    emptyState.classList.remove('hidden');
+                    return;
+                }
+                
+                emptyState.classList.add('hidden');
+                historyBody.innerHTML = violations.map(v => `
+                    <tr class="hover:bg-slate-50 transition-colors group">
+                        <td class="px-12 py-8">
+                            <div class="flex items-center gap-3">
+                                <div class="h-10 w-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-300 group-hover:bg-primary/10 group-hover:text-primary transition-all">
+                                    <span class="material-symbols-outlined">description</span>
+                                </div>
+                                <span class="font-black text-slate-800 uppercase tracking-tighter">${v.camera_name || 'N/A'}</span>
+                            </div>
+                        </td>
+                        <td class="px-12 py-8 font-bold text-slate-400">#CAM-${String(v.camera_id).padStart(2, '0')}</td>
+                        <td class="px-12 py-8 text-slate-500 font-mono text-[11px]">${v.time}</td>
+                        <td class="px-12 py-8">
+                            <span class="px-4 py-2 bg-danger/5 text-danger rounded-2xl text-[10px] font-black border border-danger/10 shadow-sm">${v.duration}s Breach</span>
+                        </td>
+                        <td class="px-12 py-8 text-center">
+                            <img src="/violations/${v.image}" class="h-16 w-16 object-cover mx-auto rounded-2xl hover:scale-150 transition-all cursor-pointer shadow-xl border-4 border-white" onclick="openEvidenceModal('/violations/${v.image}')"/>
+                        </td>
+                        <td class="px-12 py-8 text-right">
+                            <button onclick="openEvidenceModal('/violations/${v.image}')" class="h-10 w-10 flex items-center justify-center bg-slate-50 rounded-xl text-slate-300 hover:bg-primary hover:text-white transition-all shadow-sm">
+                                <span class="material-symbols-outlined text-sm font-bold">zoom_in</span>
+                            </button>
+                        </td>
                     </tr>
                 `).join('');
             } catch (err) { console.error("History fetch error:", err); }
@@ -495,47 +208,62 @@
 
         function openEvidenceModal(imageUrl) {
             const mImg = document.getElementById('modal-img');
-            if (mImg) {
-                mImg.src = imageUrl;
-                document.getElementById('image-modal').classList.remove('hidden');
-            }
+            mImg.src = imageUrl;
+            document.getElementById('image-modal').classList.remove('hidden');
         }
 
-        /** TRÌNH PHÂN TÍCH CHART */
+        /** ANALYTICS HANDLER */
         async function updateAnalysis() {
             const camId = document.getElementById('analysis-cam-select').value;
             try {
                 const res = await fetch(`/api/analytics?camera_id=${camId}`);
-                const analyticsData = await res.json();
-                document.getElementById('analytics-duration').innerText = analyticsData.total_duration_minutes + "m";
-                document.getElementById('analytics-count').innerText = analyticsData.total_violations;
-                renderChart();
+                const data = await res.json();
+                document.getElementById('analytics-duration').innerText = data.total_duration_minutes + "m";
+                document.getElementById('analytics-count').innerText = data.total_violations;
+                renderChart(data);
             } catch (e) { console.error("Analytics Error:", e); }
         }
 
-        function renderChart() {
-            const chartCanvasContext = document.getElementById('analysis-chart').getContext('2d');
+        function renderChart(serverData) {
+            const ctx = document.getElementById('analysis-chart').getContext('2d');
             if (analyticsChartInstance) analyticsChartInstance.destroy();
-            analyticsChartInstance = new Chart(chartCanvasContext, {
+            
+            const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+            gradient.addColorStop(0, 'rgba(59, 130, 246, 0.4)');
+            gradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
+
+            analyticsChartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
+                    labels: ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'],
                     datasets: [{
-                        label: 'Số lần vi phạm',
-                        data: [5, 4, 12, 8, 20, 3, 7], // Mock data
-                        borderColor: '#00daf3', backgroundColor: 'rgba(0, 218, 243, 0.05)',
-                        fill: true, tension: 0.4, borderWidth: 3, pointRadius: 4
+                        label: 'Security Breaches',
+                        data: [Math.floor(Math.random()*10), Math.floor(Math.random()*12), Math.floor(Math.random()*5), 8, 15, 3, 2], // Simulated for UI
+                        borderColor: '#3b82f6',
+                        backgroundColor: gradient,
+                        fill: true,
+                        tension: 0.5,
+                        borderWidth: 6,
+                        pointRadius: 6,
+                        pointBackgroundColor: '#ffffff',
+                        pointBorderColor: '#3b82f6',
+                        pointBorderWidth: 4,
+                        pointHoverRadius: 10,
+                        pointHoverBorderWidth: 8
                     }]
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
-                    scales: { y: { grid: { color: 'rgba(255,255,255,0.05)' } }, x: { grid: { display: false } } }
+                    scales: { 
+                        y: { grid: { color: '#f1f5f9', lineWidth: 2 }, border: { dash: [5, 5] }, ticks: { font: { weight: 'bold' } } }, 
+                        x: { grid: { display: false }, ticks: { font: { weight: 'bold' } } } 
+                    }
                 }
             });
         }
 
-        /** CẤU HÌNH ROI DYNAMICS */
+        /** ROI CONFIGURATION */
         const roiCanvas = document.getElementById('roi-canvas');
         const roiCtx = roiCanvas ? roiCanvas.getContext('2d') : null;
 
@@ -569,28 +297,26 @@
             roiCtx.clearRect(0, 0, roiCanvas.width, roiCanvas.height);
             if (selectedROIPoints.length === 0) return;
 
-            roiCtx.fillStyle = '#00daf3'; roiCtx.strokeStyle = '#00daf3'; roiCtx.lineWidth = 3;
-            selectedROIPoints.forEach(point => {
-                roiCtx.beginPath();
-                roiCtx.arc(point[0], point[1], 5, 0, Math.PI * 2);
-                roiCtx.fill();
+            roiCtx.fillStyle = '#3b82f6'; roiCtx.strokeStyle = '#3b82f6'; roiCtx.lineWidth = 4;
+            selectedROIPoints.forEach(p => {
+                roiCtx.beginPath(); roiCtx.arc(p[0], p[1], 8, 0, Math.PI * 2); roiCtx.fill();
+                roiCtx.strokeStyle = 'white'; roiCtx.lineWidth = 3; roiCtx.stroke();
             });
 
             roiCtx.beginPath(); roiCtx.moveTo(selectedROIPoints[0][0], selectedROIPoints[0][1]);
-            selectedROIPoints.forEach(point => roiCtx.lineTo(point[0], point[1]));
+            selectedROIPoints.forEach(p => roiCtx.lineTo(p[0], p[1]));
             if (selectedROIPoints.length > 2) {
                 roiCtx.closePath();
-                roiCtx.fillStyle = 'rgba(0, 218, 243, 0.15)';
+                roiCtx.fillStyle = 'rgba(59, 130, 246, 0.2)';
                 roiCtx.fill();
             }
-            roiCtx.stroke();
+            roiCtx.strokeStyle = '#3b82f6'; roiCtx.stroke();
         }
 
         function clearROI() { selectedROIPoints = []; renderROIPolygon(); }
         async function saveROI() {
             if (!roiCanvas) return;
-            const sx = 640 / roiCanvas.width;
-            const sy = 360 / roiCanvas.height;
+            const sx = 640 / roiCanvas.width; const sy = 360 / roiCanvas.height;
             const finalPoints = selectedROIPoints.map(p => [Math.round(p[0] * sx), Math.round(p[1] * sy)]);
 
             await fetch('/api/config_roi', {
@@ -598,10 +324,10 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ camera_id: focusedCamId, points: finalPoints })
             });
-            alert('Cấu hình ROI đã được lưu cho CAM ' + focusedCamId);
+            alert('Security ROI Protocol Updated for CAM-' + focusedCamId);
         }
 
-        /** KHỞI TẠO MẶC ĐỊNH */
+        /** GLOBAL INIT */
         function setupGlobalListeners() {
             ALL_CAMERAS.forEach(cam => {
                 socket.off(`stats_update_${cam.id}`).on(`stats_update_${cam.id}`, (data) => {
@@ -614,8 +340,7 @@
         window.onload = () => {
             setupGlobalListeners();
             loadHistory();
+            window.addEventListener('resize', synchronizeROICanvas);
         };
     </script>
-</body>
-
-</html>
+{% endblock %}
