@@ -135,7 +135,8 @@ class AIWorker(threading.Thread):
                     "latest_detections": detections, # Gửi toạ độ người
                     "roi_on_server": self.engine.current_roi.tolist() if self.engine.current_roi is not None else [],
                     "camera_id": self.camera_id,
-                    "camera_name": self.name
+                    "camera_name": self.name,
+                    "alarm_threshold": self.alarm_delay
                 })
                 self.socketio.emit(f'stats_update_{self.camera_id}', self.system_data)
                 last_emit_time = now

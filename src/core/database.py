@@ -72,6 +72,59 @@ class DatabaseManager:
             logger.error(f"Lỗi thêm camera: {e}")
             return None
 
+    def sync_camera(self, name, url, group="Default"):
+        """Đồng bộ camera từ config: Thêm mới nếu chưa có, cập nhật tên nếu URL đã có"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                # Kiểm tra xem URL đã tồn tại chưa
+                cursor.execute("SELECT id, name FROM cameras WHERE url = ?", (url,))
+                existing = cursor.fetchone()
+                
+                if existing:
+                    cam_id, old_name = existing
+                    if old_name != name:
+                        cursor.execute("UPDATE cameras SET name = ?, group_name = ? WHERE id = ?", (name, group, cam_id))
+                        logger.info(f"Đã cập nhật tên Camera ID {cam_id}: {old_name} -> {name}")
+                else:
+                    cursor.execute(
+                        "INSERT INTO cameras (name, url, group_name) VALUES (?, ?, ?)",
+                        (name, url, group)
+                    )
+                    logger.info(f"Đã thêm camera mới từ cấu hình: {name} ({url})")
+                
+                conn.commit()
+                return True
+        except Exception as e:
+            logger.error(f"Lỗi đồng bộ camera: {e}")
+            return False
+
+    def delete_orphaned_cameras(self, active_urls):
+        """Xóa vĩnh viễn các camera và dữ liệu liên quan nếu URL không nằm trong danh sách cấu hình"""
+        if not active_urls:
+            return False
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                # 1. Tìm các camera ID cần xóa
+                placeholders = ",".join(["?"] * len(active_urls))
+                cursor.execute(f"SELECT id FROM cameras WHERE url NOT IN ({placeholders})", active_urls)
+                orphaned_ids = [row[0] for row in cursor.fetchall()]
+                
+                if orphaned_ids:
+                    id_placeholders = ",".join(["?"] * len(orphaned_ids))
+                    # 2. Xóa violations liên quan
+                    cursor.execute(f"DELETE FROM violations WHERE camera_id IN ({id_placeholders})", orphaned_ids)
+                    # 3. Xóa chính camera đó
+                    cursor.execute(f"DELETE FROM cameras WHERE id IN ({id_placeholders})", orphaned_ids)
+                    
+                    conn.commit()
+                    logger.info(f"Đã dọn dẹp {len(orphaned_ids)} camera cũ không còn trong cấu hình.")
+                return True
+        except Exception as e:
+            logger.error(f"Lỗi khi dọn dẹp camera: {e}")
+            return False
+
     def get_cameras(self, active_only=True):
         """Lấy danh sách camera"""
         try:
@@ -87,16 +140,21 @@ class DatabaseManager:
             return []
 
     def get_recent_violations(self, camera_id=None, limit=50):
-        """Lấy lịch sử hiển thị Dashboard (Có lọc theo camera)"""
+        """Lấy lịch sử hiển thị Dashboard (Có JOIN lấy tên Camera)"""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
+                query = """
+                    SELECT v.id, v.time, v.duration, v.image, v.camera_id, c.name
+                    FROM violations v
+                    LEFT JOIN cameras c ON v.camera_id = c.id
+                """
                 if camera_id:
-                    cursor.execute("SELECT id, time, duration, image, camera_id FROM violations WHERE camera_id = ? ORDER BY id DESC LIMIT ?", (camera_id, limit))
+                    cursor.execute(query + " WHERE v.camera_id = ? ORDER BY v.id DESC LIMIT ?", (camera_id, limit))
                 else:
-                    cursor.execute("SELECT id, time, duration, image, camera_id FROM violations ORDER BY id DESC LIMIT ?", (limit,))
+                    cursor.execute(query + " ORDER BY v.id DESC LIMIT ?", (limit,))
                 rows = cursor.fetchall()
-            return [{"id": r[0], "time": r[1], "duration": r[2], "image": r[3], "camera_id": r[4]} for r in rows]
+            return [{"id": r[0], "time": r[1], "duration": r[2], "image": r[3], "camera_id": r[4], "camera_name": r[5]} for r in rows]
         except Exception as e:
             logger.error(f"Lỗi lấy lịch sử: {e}")
             return []

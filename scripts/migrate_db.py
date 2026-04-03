@@ -30,17 +30,39 @@ def migrate():
         ''')
         print("Đã xác nhận bảng cameras tồn tại.")
         
-        # 3. Thêm camera mặc định nếu bảng trốn
-        cursor.execute("SELECT COUNT(*) FROM cameras")
-        if cursor.fetchone()[0] == 0:
-            cursor.execute(
-                "INSERT INTO cameras (name, url, group_name) VALUES (?, ?, ?)",
-                ("Camera Mặc Định", os.getenv("RTSP_URL", "rtsp://admin:pass@192.168.1.10:554/stream"), "Zone A")
-            )
-            print("Đã thêm camera mặc định.")
+        # 3. Đồng bộ camera từ .env
+        camera_configs = []
+        default_rtsp = os.getenv("RTSP_URL")
+        if default_rtsp:
+            camera_configs.append(("Camera Mặc Định", default_rtsp))
+        for i in range(1, 101):
+            url = os.getenv(f"RTSP_URL{i}")
+            if url:
+                name = os.getenv(f"CAMERA_NAME{i}", f"Camera {i}")
+                camera_configs.append((name, url))
 
-        # 4. Tạo Index
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_violations_camera ON violations(camera_id)')
+        for name, url in camera_configs:
+            # Kiểm tra URL đã tồn tại chưa
+            cursor.execute("SELECT id FROM cameras WHERE url = ?", (url,))
+            if not cursor.fetchone():
+                cursor.execute(
+                    "INSERT INTO cameras (name, url, group_name) VALUES (?, ?, ?)",
+                    (name, url, "Zone A")
+                )
+                print(f"Đã thêm camera mới: {name}")
+            else:
+                cursor.execute("UPDATE cameras SET name = ? WHERE url = ?", (name, url))
+                print(f"Đã cập nhật tên cho camera: {name}")
+
+        # 4. DỌN DẸP: Xóa camera không còn trong env
+        active_urls = [cfg[1] for cfg in camera_configs]
+        if active_urls:
+            placeholders = ",".join(["?"] * len(active_urls))
+            cursor.execute(f"DELETE FROM violations WHERE camera_id NOT IN (SELECT id FROM cameras WHERE url IN ({placeholders}))", active_urls)
+            cursor.execute(f"DELETE FROM cameras WHERE url NOT IN ({placeholders})", active_urls)
+            print("Đã dọn dẹp các camera cũ khỏi Database.")
+
+        # 5. Tạo Index
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_violations_time ON violations(time)')
         
         conn.commit()

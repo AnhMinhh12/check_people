@@ -184,8 +184,12 @@
                         <div class="mt-4 h-2 w-full bg-black/50 rounded-full overflow-hidden">
                             <div id="time-bar" class="bg-red-500 h-full w-0 transition-all duration-300"></div>
                         </div>
-                        <p class="mt-3 text-[10px] text-slate-500 font-bold uppercase">Vắng mặt: <span id="missing-time"
-                                class="text-red-500">0.0s</span></p>
+                        <div class="mt-3 flex justify-between items-center">
+                            <p class="text-[10px] text-slate-500 font-bold uppercase">Vắng mặt: <span id="missing-time"
+                                    class="text-red-500">0.0s</span></p>
+                            <p class="text-[10px] text-slate-500 font-bold uppercase">Ngưỡng: <span id="threshold-label"
+                                    class="text-slate-400">--s</span></p>
+                        </div>
                     </div>
                     <!-- ROI PANEL -->
                     <div id="roi-config-panel"
@@ -319,6 +323,7 @@
                     <table class="w-full text-left">
                         <thead class="bg-black/20 text-[10px] uppercase tracking-widest text-slate-500 font-extrabold">
                             <tr>
+                                <th class="px-10 py-6">Tên Camera</th>
                                 <th class="px-10 py-6">Camera ID</th>
                                 <th class="px-10 py-6 font-mono">Timestamp</th>
                                 <th class="px-10 py-6">Duration</th>
@@ -427,7 +432,11 @@
             document.getElementById('status-display').innerText = data.status;
             document.getElementById('status-display').style.color = data.status === 'AN TOÀN' ? '#00daf3' : '#ffb4ab';
             document.getElementById('missing-time').innerText = data.missing_time + 's';
-            document.getElementById('time-bar').style.width = Math.min((data.missing_time / 5) * 100, 100) + '%';
+            
+            // Cập nhật thanh tiến trình theo ngưỡng thực tế
+            const threshold = data.alarm_threshold || 5.0;
+            document.getElementById('threshold-label').innerText = threshold + 's';
+            document.getElementById('time-bar').style.width = Math.min((data.missing_time / threshold) * 100, 100) + '%';
 
             // Vẽ lớp Overlay (ROI & Detections)
             const mainCanvas = document.getElementById('dashboard-canvas');
@@ -473,7 +482,8 @@
                 const violationsData = await response.json();
                 historyBody.innerHTML = violationsData.map(v => `
                     <tr class="hover:bg-white/5 transition-colors border-b border-white/5">
-                        <td class="px-10 py-6 font-black text-tertiary">#CAMERA ${v.camera_id}</td>
+                        <td class="px-10 py-6 font-black text-white uppercase">${v.camera_name || 'N/A'}</td>
+                        <td class="px-10 py-6 font-bold text-tertiary/60">#CAM ${v.camera_id}</td>
                         <td class="px-10 py-6 text-slate-400 font-mono text-[11px]">${v.time}</td>
                         <td class="px-10 py-6"><span class="px-3 py-1 bg-red-500/10 text-red-500 rounded-full text-[10px] font-black border border-red-500/20">${v.duration}s</span></td>
                         <td class="px-10 py-6 text-center"><img src="/violations/${v.image}" class="h-12 mx-auto rounded-xl hover:scale-[1.8] transition-all cursor-pointer shadow-lg" onclick="openEvidenceModal('/violations/${v.image}')"/></td>
