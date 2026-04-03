@@ -3,26 +3,30 @@ import numpy as np
 import json
 import os
 import logging
+import time
 from ultralytics import YOLO
 
 logger = logging.getLogger("AIEngine")
 
 class AIEngine:
-    def __init__(self, model_path="yolov8s.pt", config_path="roi_config.json"):
-        # Ưu tiên các model có sẵn trong máy
-        # Đã nâng cấp lên yolov8s.pt cho Intel i7 để đạt độ chính xác cao nhất
-        final_model = model_path if os.path.exists(model_path) else "yolov8s.pt"
+    def __init__(self, model_path="yolov8n.pt", config_path="roi_config.json"):
+        # Chuyển sang model Nano (yolov8n.pt) để đạt FPS tối đa trên CPU
+        final_model = model_path if os.path.exists(model_path) else "yolov8n.pt"
+        
+        import torch
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         
         try:
             self.model = YOLO(final_model, task="detect")
-            logger.info(f">>> AI Engine khởi tạo thành công với Model: {final_model}")
+            logger.info(f">>> AI Engine khởi tạo thành công với Model: {final_model} trên {self.device}")
         except Exception as e:
             logger.error(f"Lỗi khởi tạo AI: {e}")
-            self.model = YOLO("yolov8s.pt")
+            self.model = YOLO("yolov8n.pt")
 
         self.conf = 0.15
         self.config_path = config_path
         self.last_config_mtime = 0
+        self.last_config_check = 0
         self.roi_polygon = None
         self.roi_mask = None
         self.current_roi = None
@@ -51,9 +55,14 @@ class AIEngine:
                 logger.error(f"Lỗi tải ROI config: {e}")
 
     def detect_people(self, frame):
-        if os.path.exists(self.config_path):
-            if os.path.getmtime(self.config_path) > self.last_config_mtime:
-                self.load_config()
+        # Chỉ kiểm tra file cấu hình mỗi 2 giây để tránh lag Disk I/O
+        now = time.time()
+        if now - self.last_config_check > 2.0:
+            self.last_config_check = now
+            if os.path.exists(self.config_path):
+                mtime = os.path.getmtime(self.config_path)
+                if mtime > self.last_config_mtime:
+                    self.load_config()
                 
         h, w = frame.shape[:2]
         if (self.roi_mask is None or self.roi_mask.shape != (h, w)) and self.roi_polygon is not None and len(self.roi_polygon) > 0:
@@ -64,8 +73,9 @@ class AIEngine:
             cv2.fillPoly(self.roi_mask, [scaled_poly], 255)
             self.current_roi = scaled_poly
 
-        # Sử dụng Tự động Tracking để nhận diện IDs
-        results = self.model.track(frame, persist=True, classes=[0], conf=self.conf, verbose=False)
+        # Sử dụng Tự động Tracking với imgsz=640 để tăng tốc độ xử lý
+        results = self.model.track(frame, persist=True, classes=[0], conf=self.conf, 
+                                  verbose=False, device=self.device, imgsz=640)
         current_detections = []
         found_ids = set()
         
@@ -76,17 +86,13 @@ class AIEngine:
                 track_id = int(r.id[0].item()) if r.id is not None else -1
                 
                 x1, y1, x2, y2 = box
-                cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-                
                 is_safe = False
                 if self.roi_mask is not None:
-                    # Logic Phối cảnh V4.2: Quét từ Đáy lên tận Vai (Bao phủ 100% đến 20% chiều cao)
-                    for ratio in [1.0, 0.8, 0.6, 0.4, 0.2]:
-                        test_y = int(y1 + (y2 - y1) * ratio)
-                        test_y = max(0, min(test_y, h - 1))
-                        if self.roi_mask[test_y, cx] == 255:
-                            is_safe = True
-                            break
+                    # Cách đơn giản nhất: Kiểm tra xem bất kỳ phần nào của Bounding Box
+                    # có chồng lấn (overlap) với vùng ROI hay không.
+                    box_roi = self.roi_mask[y1:y2, x1:x2]
+                    if np.any(box_roi == 255):
+                        is_safe = True
                             
                 detection = {"box": [int(x1), int(y1), int(x2), int(y2)], "is_safe": is_safe}
                 current_detections.append(detection)

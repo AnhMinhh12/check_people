@@ -1,4 +1,4 @@
-# 🛡️ Sentinel Warden AI — Safety Monitoring Platform
+    # 🛡️ Sentinel Warden AI — Safety Monitoring Platform
 
 [![CI/CD](https://github.com/AnhMinhh12/check_people/actions/workflows/docker-build.yml/badge.svg)](https://github.com/AnhMinhh12/check_people/actions)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)

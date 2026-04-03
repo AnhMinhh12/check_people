@@ -16,7 +16,7 @@ app.register_blueprint(api_bp)
 
 # Cấu hình chuẩn
 RTSP_URL = "rtsp://admin:Htmp%402019@192.168.103.14:554/Streaming/Channels/102"
-MODEL_PATH = "yolov8s.pt"
+MODEL_PATH = "yolov8n.pt"
 CONFIG_PATH = "roi_config.json"
 ALARM_DELAY = 5.0 # Giây
 

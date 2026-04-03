@@ -41,12 +41,13 @@ class AIWorker(threading.Thread):
         last_loop_time = time.time()
         last_emit_time = 0
         screenshot_taken = False
-        current_violation_img = None # Lưu tên ảnh tạm để chốt sổ sau
+        current_violation_img = None
+        fps_avg = 0
         
         logger.info(">>> [BẮT ĐẦU] Hệ thống Warden AI đã sẵn sàng và đang giám sát!")
 
         while self.running:
-            t0 = time.time()
+            loop_start = time.time()
             ret, frame, frame_id = self.streamer.read()
             
             # Đồng bộ kết nối Camera
@@ -57,7 +58,7 @@ class AIWorker(threading.Thread):
                 else: logger.warning(">>> [STATUS] Mất tín hiệu Camera!")
 
             if not ret or frame is None:
-                time.sleep(0.1)
+                time.sleep(0.01)
                 continue
 
             # Xử lý AI
@@ -94,8 +95,14 @@ class AIWorker(threading.Thread):
                 screenshot_taken = False
                 current_violation_img = None
 
-            # Gửi dữ liệu Dashboard (5Hz - 0.2s) để mượt mà và rõ nét hơn
-            if now - last_emit_time > 0.2:
+            # Tính toán FPS mượt mà
+            duration = time.time() - loop_start
+            current_fps = 1.0 / (duration + 0.001)
+            fps_avg = fps_avg * 0.9 + current_fps * 0.1 # EMA (Exponential Moving Average)
+
+            # Gửi dữ liệu Dashboard (Tăng lên 10Hz - 0.1s nếu AI đủ nhanh)
+            emit_interval = 0.1 if fps_avg > 10 else 0.2
+            if now - last_emit_time > emit_interval:
                 # Resize ảnh sạch (không vẽ đè) trả về Dashboard
                 mini_frame = cv2.resize(frame, (640, 360))
                 # Nâng chất lượng JPEG lên 50 (cân bằng giữa độ nét và tốc độ)
@@ -108,7 +115,7 @@ class AIWorker(threading.Thread):
                     "total_workers": len(detections),
                     "status": status,
                     "missing_time": round(total_missing_time, 1),
-                    "fps": round(1.0 / (time.time() - t0 + 0.001), 1),
+                    "fps": round(fps_avg, 1),
                     "image": img_base64,
                     "latest_detections": detections, # Gửi toạ độ người
                     "roi_on_server": self.engine.current_roi.tolist() if self.engine.current_roi is not None else []
