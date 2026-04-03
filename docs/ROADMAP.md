@@ -1,14 +1,14 @@
 # 🗺️ Lộ trình Phát triển & Kế hoạch Mở rộng — Sentinel Warden AI
 
-> **Phiên bản hiện tại**: V4.5 (Industrial Edition)  
-> **Ngày cập nhật**: 01/04/2026  
-> **Trạng thái**: Đang vận hành ổn định trên 1 Camera RTSP  
+> **Phiên bản hiện tại**: V5.0 (Enterprise Edition)  
+> **Ngày cập nhật**: 03/04/2026  
+> **Trạng thái**: Đã hoàn thành tải cấu trúc dự án. Đang vận hành ổn định mô hình Đa Camera.
 
 ---
 
 ## 📋 Mục lục
 
-1. [Đánh giá Hiện trạng](#-1-đánh-giá-hiện-trạng-hệ-thống-v45)
+1. [Đánh giá Hiện trạng](#-1-đánh-giá-hiện-trạng-hệ-thống-v50)
 2. [Kế hoạch Mở rộng Camera](#-2-kế-hoạch-mở-rộng-camera)
 3. [Nâng cấp Phần cứng (Server)](#-3-nâng-cấp-phần-cứng-server)
 4. [Cải thiện Phần mềm](#-4-cải-thiện-phần-mềm)
@@ -20,7 +20,7 @@
 
 ---
 
-## 🔍 1. Đánh giá Hiện trạng Hệ thống V4.5
+## 🔍 1. Đánh giá Hiện trạng Hệ thống V5.0
 
 ### 1.1 Những gì đã hoàn thành ✅
 | Tính năng | Trạng thái | Ghi chú |
@@ -29,12 +29,10 @@
 | Quét đa điểm dọc thân (5 điểm) | ✅ Hoàn thành | Từ chân lên vai, bao phủ mọi tư thế |
 | Bộ nhớ đệm chống nháy (Persistence) | ✅ Hoàn thành | Giữ vết 5 khung hình, loại bỏ "ghost box" |
 | Vẽ vùng an toàn ROI trên Web | ✅ Hoàn thành | Đa giác tùy chỉnh, chuột trái/phải |
-| Dashboard giám sát Real-time | ✅ Hoàn thành | FPS, trạng thái, thanh thời gian, nhật ký |
-| Ghi bằng chứng vi phạm (Ảnh + DB) | ✅ Hoàn thành | Ảnh có kèm Bounding Box (Annotated) |
 | Cảnh báo HUD toàn màn hình | ✅ Hoàn thành | Viền đỏ nhấp nháy khi vi phạm |
-| CI/CD tự động (GitHub Actions) | ✅ Hoàn thành | Auto-build Docker Image khi push code |
-| Docker Container hóa | ✅ Hoàn thành | Dockerfile + docker-compose.yml |
-| Hướng dẫn vẽ vùng trên giao diện | ✅ Hoàn thành | Panel hướng dẫn 3 bước trong tab Cấu hình |
+| Hỗ trợ nhiều Camera (Mới V4.5) | ✅ Hoàn thành | Chạy đa luồng song song |
+| Giao diện Grid Dashboard (Mới V4.5) | ✅ Hoàn thành | Lưới tổng quan và trang xem chi tiết |
+| Quy hoạch cấu trúc Enterprise (Mới V5.0)| ✅ Hoàn thành | Tách biệt Source (`src/`), Database (`data/`), Model (`models/`) |
 
 ### 1.2 Hạn chế hiện tại ⚠️
 | Hạn chế | Mức độ | Ảnh hưởng |

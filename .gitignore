@@ -15,14 +15,12 @@ bin/
 lib/
 include/
 
-# Dữ liệu ứng dụng và nhật ký vi phạm (DỮ LIỆU CÁ NHÂN)
-sentinel.db
-violations/
+# Dữ liệu ứng dụng và File nặng (data/, models/, logs/)
+data/
+models/
+logs/
 *.bak
 *.log
-
-# Model Weights (Nên tải riêng hoặc lưu ở Registry khác)
-yolov8n.pt
 
 # Cấu hình IDE (VS Code, PyCharm)
 .vscode/

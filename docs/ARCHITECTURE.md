@@ -1,11 +1,47 @@
-# 🏛️ Kiến trúc Hệ thống — Sentinel Warden AI V4.5
+# 🏛️ Kiến trúc Hệ thống — Sentinel Warden AI V5.0
 
-> **Phiên bản**: V4.5 Industrial Edition  
-> **Cập nhật**: 01/04/2026
+> **Phiên bản**: V5.0 Enterprise Edition  
+> **Cập nhật**: 03/04/2026
 
 ---
 
-## 📐 1. Sơ đồ Kiến trúc Tổng thể
+## 📐 1. Cấu trúc Thư mục (Enterprise Layout)
+
+```text
+/check_person
+│
+├─ app.py                <-- (File khởi động Server)
+├─ Dockerfile            
+├─ docker-compose.yml 
+├─ requirements.txt
+├─ .env                  
+│
+├─ src/                  <-- (Mã nguồn chính)
+│  ├─ api/               <-- REST API routes
+│  ├─ core/              <-- Database, Worker Manager, AI Engine, Camera config
+│  └─ services/          <-- Background Threads (AI Worker)
+│
+├─ models/               <-- (Chứa pre-trained weights)
+│  ├─ yolov8n.pt         
+│  └─ yolov8s.pt         
+│
+├─ data/                 <-- (Dữ liệu động, cần backup thường xuyên)
+│  ├─ sentinel.db        <-- Database SQLite chính
+│  ├─ roi_config_*.json  <-- Các file cấu hình vùng an toàn của từng camera
+│  └─ violations/        <-- Thư mục lưu ảnh bằng chứng vi phạm
+│
+├─ scripts/              <-- (Các tool chạy độc lập)
+│  ├─ migrate_db.py      <-- Script cập nhật database schema
+│  ├─ seed_test_data.py  <-- Sinh dữ liệu kiểm thử
+│  └─ wifi.py            <-- Tool test băng thông mạng
+│
+├─ templates/            <-- Frontend (HTML/JS/TailwindCSS)
+└─ docs/                 <-- Tài liệu hệ thống
+```
+
+---
+
+## 🔄 2. Sơ đồ Kiến trúc Tổng thể
 
 ```mermaid
 graph TD
@@ -37,11 +73,11 @@ graph TD
     AW -->|Đọc frame| BUF
     AW -->|Gọi detect_people| AI
     AI -->|Trả kết quả detections| AW
-    AW -->|Ghi vi phạm| DB
+    AW -->|Ghi vi phạm → data/| DB
     AW -->|Emit stats_update| FLASK
     FLASK -->|WebSocket Real-time| DASH
     API -->|GET /api/history| HIST
-    API -->|POST /api/config_roi| CONF
+    API -->|POST /api/config_roi → data/| CONF
     FLASK --> API
 ```
 
@@ -104,7 +140,7 @@ Khi công nhân quay lại (count_in_roi ≥ 1):
 
 | Thành phần | Mô tả |
 |---|---|
-| **Model** | `YOLO("yolov8s.pt", task="detect")` — Small model, 11.1M params, 28.6 GFLOPs |
+| **Model** | `YOLO("models/yolov8s.pt", task="detect")` — Small model, 11.1M params, 28.6 GFLOPs |
 | **Tracking** | `model.track(frame, persist=True, classes=[0], conf=0.15)` — Track người liên tục, cấp ID duy nhất |
 | **Confidence** | `0.15` — Ngưỡng rất thấp để bắt được tư thế khó (cúi, quay lưng) |
 | **Persistence** | `self.memory = {}` — Dict lưu {track_id: {detection, frames_missing}}. Max 5 frame |

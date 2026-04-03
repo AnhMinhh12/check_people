@@ -1,7 +1,7 @@
-# 🛡️ Sentinel Warden AI — Tài liệu Mô tả Hệ thống V4.5
+# 🛡️ Sentinel Warden AI — Tài liệu Mô tả Hệ thống V5.0
 
-> **Phiên bản**: V4.5 Industrial Edition  
-> **Cập nhật lần cuối**: 01/04/2026  
+> **Phiên bản**: V5.0 Enterprise Edition  
+> **Cập nhật lần cuối**: 03/04/2026  
 > **Repository**: [github.com/AnhMinhh12/check_people](https://github.com/AnhMinhh12/check_people)
 
 ---
@@ -99,40 +99,32 @@ Khi trạng thái chuyển sang **VI PHẠM** (≥ 5s), hệ thống tự độn
 
 ```
 check_person/
-├── app.py                          # Entry point — Khởi tạo Flask + SocketIO + AIWorker
-├── .env                            # Cấu hình: RTSP URL, Model Path, Confidence, Alarm Delay
-├── roi_config.json                 # Tọa độ vùng an toàn ROI (chuẩn 640x360)
-├── requirements.txt                # Thư viện Python (Flask, YOLO, OpenCV Headless...)
-├── Dockerfile                      # Container hóa cho triển khai Server
-├── docker-compose.yml              # Orchestration với Volume + Healthcheck
+├── app.py                          # Entry point — Khởi tạo Flask + SocketIO + Worker
+├── .env                            # Cấu hình: RTSP URL, Model Path, Data paths...
+├── requirements.txt                # Thư viện Python (Flask, YOLO, OpenCV...)
+├── Dockerfile                      
+├── docker-compose.yml              
 │
-├── src/
+├── src/                            # Mã nguồn chính
 │   ├── core/
-│   │   ├── ai_engine.py            # 🧠 Bộ não AI: YOLOv8s + Persistence + Multi-point Scan + NMS
-│   │   ├── camera_stream.py        # 📷 Đọc luồng RTSP trong Thread riêng biệt
-│   │   └── database.py             # 💾 Quản lý SQLite (DatabaseManager)
+│   │   ├── ai_engine.py            # AI Engine
+│   │   ├── camera_stream.py        # Streamer
+│   │   └── database.py             # Database Manager V5.0
 │   ├── services/
-│   │   └── ai_worker.py            # ⚙️ Luồng xử lý chính: Logic vi phạm 5s + Ghi bằng chứng
-│   ├── api/
-│   │   └── routes.py               # 🌐 REST API: /api/history, /api/config_roi, /api/health
-│   ├── database/
-│   │   └── db_manager.py           # 📋 Truy vấn lịch sử vi phạm
-│   └── tests/
-│       └── test_basic.py           # ✅ Unit Test (Mock AI trên GitHub Actions)
+│   │   └── ai_worker.py            # AI Worker Logic & Logging tách biệt
+│   └── api/
+│       └── routes.py               # REST API endpoints
 │
-├── templates/
-│   └── index.html                  # 🎨 Dashboard Web: 4 Tab (Giám sát, Nhật ký, Phân tích, Cấu hình)
+├── data/                           # Dữ liệu động (DB, ROI, Violations)
+│   ├── sentinel.db        
+│   ├── roi_config_*.json  
+│   └── violations/                 # Ảnh bằng chứng vi phạm
 │
-├── violations/                     # 📸 Thư mục ảnh bằng chứng vi phạm (tự tạo)
+├── models/                         # Mô hình AI (.pt)
 │
-├── .github/workflows/
-│   └── docker-build.yml            # 🐋 CI/CD: Auto Build + Push Docker Image khi git push
+├── logs/                           # Nhật ký hoạt động từng Camera
 │
-└── docs/
-    ├── mo_ta.md                    # Tài liệu mô tả hệ thống (file này)
-    ├── ARCHITECTURE.md             # Kiến trúc kỹ thuật chi tiết
-    ├── README.md                   # Hướng dẫn cài đặt & sử dụng
-    └── ROADMAP.md                  # Lộ trình phát triển & mở rộng camera
+└── docs/                           # Tài liệu hệ thống
 ```
 
 ---
@@ -141,7 +133,7 @@ check_person/
 
 ### 6.1 File `.env`
 ```env
-RTSP_URL=rtsp://admin:Htmp%402019@192.168.103.14:554/Streaming/Channels/102
+RTSP_URL=rtsp://admin:password@ip_address:554/stream
 FLASK_PORT=5000
 FLASK_DEBUG=False
 MODEL_PATH=yolov8s.pt

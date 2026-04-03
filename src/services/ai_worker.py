@@ -8,18 +8,33 @@ from datetime import datetime
 from src.core.camera_stream import CameraStreamer
 from src.core.ai_engine import AIEngine
 
-logger = logging.getLogger("AIWorker")
+
 
 class AIWorker(threading.Thread):
-    def __init__(self, rtsp_url, model_path, config_path, alarm_delay, db_manager, socketio):
+    def __init__(self, camera_id, name, rtsp_url, model_path, config_path, alarm_delay, db_manager, socketio):
         super().__init__()
+        self.camera_id = camera_id
+        self.name = name
         self.streamer = CameraStreamer(rtsp_url)
-        self.engine = AIEngine(model_path, config_path)
+        # Mỗi camera có file cấu hình ROI riêng trong thư mục data/
+        self.config_path = f"data/roi_config_{camera_id}.json"
+        self.engine = AIEngine(model_path, self.config_path)
         self.db_manager = db_manager
         self.socketio = socketio
         self.alarm_delay = alarm_delay
         self.running = False
         self.daemon = True
+        
+        # Setup Logger riêng cho từng Camera
+        logs_dir = os.getenv("LOGS_DIR", "logs")
+        os.makedirs(logs_dir, exist_ok=True)
+        self.logger = logging.getLogger(f"AIWorker_CAM_{camera_id}")
+        self.logger.setLevel(logging.INFO)
+        if not self.logger.handlers:
+            fh = logging.FileHandler(f"{logs_dir}/camera_{camera_id}.log", encoding='utf-8')
+            fh.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+            self.logger.addHandler(fh)
+            self.logger.propagate = False  # Ngăn log tràn ra màn hình console chung
         
         # Dashboard Data
         self.system_data = {
@@ -44,7 +59,7 @@ class AIWorker(threading.Thread):
         current_violation_img = None
         fps_avg = 0
         
-        logger.info(">>> [BẮT ĐẦU] Hệ thống Warden AI đã sẵn sàng và đang giám sát!")
+        self.logger.info(">>> [BẮT ĐẦU] Hệ thống Warden AI đã sẵn sàng và đang giám sát!")
 
         while self.running:
             loop_start = time.time()
@@ -53,9 +68,9 @@ class AIWorker(threading.Thread):
             # Đồng bộ kết nối Camera
             if self.system_data["camera_connected"] != ret:
                 self.system_data["camera_connected"] = ret
-                self.socketio.emit('stats_update', self.system_data)
-                if ret: logger.info(">>> [STATUS] Camera đã kết nối!")
-                else: logger.warning(">>> [STATUS] Mất tín hiệu Camera!")
+                self.socketio.emit(f'stats_update_{self.camera_id}', self.system_data)
+                if ret: self.logger.info(f">>> [CAM {self.camera_id}] Camera {self.name} đã kết nối!")
+                else: self.logger.warning(f">>> [CAM {self.camera_id}] Mất tín hiệu {self.name}!")
 
             if not ret or frame is None:
                 time.sleep(0.01)
@@ -86,10 +101,10 @@ class AIWorker(threading.Thread):
             else:
                 # Nếu trước đó đang có vi phạm, giờ quay lại -> CHỐT SỔ
                 if screenshot_taken and current_violation_img:
-                    self.db_manager.add_violation("Người vận hành rời khỏi vị trí", 
+                    self.db_manager.add_violation(self.camera_id, 
                                                  current_violation_img, 
                                                  round(total_missing_time, 1))
-                    logger.info(f"Kết thúc vi phạm: Tổng thời gian vắng mặt {round(total_missing_time, 1)}s")
+                    self.logger.info(f"[CAM {self.camera_id}] Kết thúc vi phạm: {round(total_missing_time, 1)}s")
 
                 total_missing_time = 0.0
                 screenshot_taken = False
@@ -118,9 +133,11 @@ class AIWorker(threading.Thread):
                     "fps": round(fps_avg, 1),
                     "image": img_base64,
                     "latest_detections": detections, # Gửi toạ độ người
-                    "roi_on_server": self.engine.current_roi.tolist() if self.engine.current_roi is not None else []
+                    "roi_on_server": self.engine.current_roi.tolist() if self.engine.current_roi is not None else [],
+                    "camera_id": self.camera_id,
+                    "camera_name": self.name
                 })
-                self.socketio.emit('stats_update', self.system_data)
+                self.socketio.emit(f'stats_update_{self.camera_id}', self.system_data)
                 last_emit_time = now
 
     def _save_violation_snapshot(self, frame, detections, count_in_roi):
@@ -139,10 +156,10 @@ class AIWorker(threading.Thread):
 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"violation_{timestamp}.jpg"
-            cv2.imwrite(os.path.join("violations", filename), save_frame)
+            cv2.imwrite(os.path.join("data", "violations", filename), save_frame)
             return filename
         except Exception as e:
-            logger.error(f"Lỗi chụp ảnh hiện trường: {e}")
+            self.logger.error(f"Lỗi chụp ảnh hiện trường: {e}")
             return None
 
     def stop(self):

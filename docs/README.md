@@ -81,7 +81,7 @@ docker run -d --name warden -p 5000:5000 ghcr.io/anhminhh12/check_people:main
 ### File `.env`
 ```env
 # Camera
-RTSP_URL=rtsp://admin:password@192.168.1.10:554/Streaming/Channels/102
+RTSP_URL=rtsp://admin:password@ip_address:554/Streaming/Channels/102
 
 # Server
 FLASK_PORT=5000
@@ -140,32 +140,22 @@ ALARM_DELAY_SECONDS=5.0         # Giây vắng mặt trước khi ghi vi phạm
 ## 📁 Cấu trúc Dự án
 
 ```
-check_person/
-├── app.py                      # Entry point chính
-├── .env                        # Cấu hình môi trường
-├── roi_config.json             # Tọa độ vùng an toàn
-├── requirements.txt            # Dependencies
-├── Dockerfile                  # Docker image
-├── docker-compose.yml          # Docker orchestration
+├── data/                       # Dữ liệu động (DB, ROI, Violations)
+├── models/                     # Mô hình AI (.pt)
+├── logs/                       # Nhật ký hoạt động
+├── scripts/                    # Các công cụ hỗ trợ
 ├── src/
 │   ├── core/
 │   │   ├── ai_engine.py        # AI: YOLOv8s + Tracking + Persistence + NMS
 │   │   ├── camera_stream.py    # Đọc RTSP trong thread riêng
-│   │   └── database.py         # SQLite manager
+│   │   └── database.py         # Database Manager V5.0
 │   ├── services/
 │   │   └── ai_worker.py        # Logic vi phạm + ghi bằng chứng
 │   ├── api/
 │   │   └── routes.py           # REST API endpoints
-│   └── tests/
-│       └── test_basic.py       # Unit tests
 ├── templates/
 │   └── index.html              # Web Dashboard (4 tabs)
-├── violations/                 # Ảnh bằng chứng vi phạm
 ├── docs/                       # Tài liệu
-│   ├── mo_ta.md                # Mô tả chi tiết hệ thống
-│   ├── ARCHITECTURE.md         # Kiến trúc kỹ thuật
-│   ├── README.md               # File này
-│   └── ROADMAP.md              # Lộ trình phát triển & mở rộng
 └── .github/workflows/
     └── docker-build.yml        # CI/CD tự động
 ```

@@ -1,18 +1,18 @@
 services:
   warden-app:
     build: .
-    container_name: sentinel-warden-v4
+    container_name: sentinel-warden-v5
     restart: always
     ports:
       - "5000:5000"
     volumes:
-      # Sơ đồ Volumes mới: Tách biệt mã nguồn và dữ liệu
+      # Sơ đồ Volumes V5.0: Tách biệt mã nguồn, dữ liệu và mô hình
       - ./.env:/app/.env
-      - ./roi_config.json:/app/roi_config.json
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./logs:/app/logs
       - ./src:/app/src
       - ./templates:/app/templates
-      - ./sentinel.db:/app/sentinel.db
-      - ./violations:/app/violations
       # Không gắn ./:/app trực tiếp để tránh xung đột venv giữa Windows/Linux
     environment:
       - TZ=Asia/Ho_Chi_Minh
