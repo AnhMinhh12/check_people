@@ -5,6 +5,7 @@ import os
 import logging
 import time
 from ultralytics import YOLO
+import torch
 
 logger = logging.getLogger("AIEngine")
 
@@ -13,7 +14,6 @@ class AIEngine:
         # Chuyển sang model Nano (yolov8n.pt) để đạt FPS tối đa trên CPU
         final_model = model_path if os.path.exists(model_path) else "yolov8n.pt"
         
-        import torch
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         
         try:

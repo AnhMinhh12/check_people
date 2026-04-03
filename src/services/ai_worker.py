@@ -96,7 +96,7 @@ class AIWorker(threading.Thread):
                 
                 if status == "VI PHẠM" and not screenshot_taken:
                     # Chụp ảnh bằng chứng ngay lúc vi phạm bắt đầu (từ 5s)
-                    current_violation_img = self._save_violation_snapshot(frame, detections, count_in_roi)
+                    current_violation_img = self._save_violation_snapshot(frame, detections)
                     screenshot_taken = True
             else:
                 # Nếu trước đó đang có vi phạm, giờ quay lại -> CHỐT SỔ
@@ -141,7 +141,7 @@ class AIWorker(threading.Thread):
                 self.socketio.emit(f'stats_update_{self.camera_id}', self.system_data)
                 last_emit_time = now
 
-    def _save_violation_snapshot(self, frame, detections, count_in_roi):
+    def _save_violation_snapshot(self, frame, detections):
         """Chụp ảnh hiện trường ngay lúc vi phạm và trả về tên file"""
         try:
             save_frame = frame.copy()

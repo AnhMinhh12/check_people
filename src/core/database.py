@@ -57,20 +57,6 @@ class DatabaseManager:
             logger.error(f"Lỗi Database (add_violation): {e}")
             return False
 
-    def add_camera(self, name, url, group="Default"):
-        """Thêm camera mới vào hệ thống"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute(
-                    "INSERT INTO cameras (name, url, group_name) VALUES (?, ?, ?)",
-                    (name, url, group)
-                )
-                conn.commit()
-                return cursor.lastrowid
-        except Exception as e:
-            logger.error(f"Lỗi thêm camera: {e}")
-            return None
 
     def sync_camera(self, name, url, group="Default"):
         """Đồng bộ camera từ config: Thêm mới nếu chưa có, cập nhật tên nếu URL đã có"""

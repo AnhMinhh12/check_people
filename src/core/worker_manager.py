@@ -40,5 +40,3 @@ class WorkerManager:
             logger.info(f"Đã dừng Worker cho Camera ID {cam_id}")
         self.active_workers = {}
 
-    def get_worker(self, camera_id):
-        return self.active_workers.get(camera_id)
