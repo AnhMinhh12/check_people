@@ -10,6 +10,8 @@ eventlet==0.33.3
 ultralytics>=8.3.0
 numpy<2.0.0
 opencv-python-headless>=4.8.0
+openvino==2024.0.0
+onnx>=1.15.0
 
 # System Utilities
 psutil==5.9.5

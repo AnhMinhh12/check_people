@@ -10,22 +10,29 @@ import torch
 logger = logging.getLogger("AIEngine")
 
 class AIEngine:
-    def __init__(self, model_instance=None, model_path="yolov8n.pt", config_path="roi_config.json"):
+    def __init__(self, model_instance=None, model_path=None, config_path="roi_config.json"):
         # Nếu đã có Model được nạp sẵn (Singleton), sử dụng nó để tiết kiệm RAM (V5.0 Optimization)
         if model_instance is not None:
             self.model = model_instance
-            # Lấy thiết bị từ tham số đầu tiên của mô hình
-            self.device = next(self.model.parameters()).device
+            # Lấy thiết bị (V5.3.1 fix for compiled models)
+            try:
+                self.device = next(self.model.parameters()).device
+            except (StopIteration, AttributeError):
+                self.device = 'cpu'
             logger.info(f">>> AI Engine tái sử dụng Model dùng chung trên {self.device}")
         else:
-            final_model = model_path if os.path.exists(model_path) else "yolov8n.pt"
+            final_model = model_path if model_path and os.path.exists(model_path) else "models/yolov8s.onnx"
             self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
             try:
                 self.model = YOLO(final_model, task="detect")
                 logger.info(f">>> AI Engine khởi tạo Model mới: {final_model} trên {self.device}")
             except Exception as e:
                 logger.error(f"Lỗi khởi tạo AI: {e}")
-                self.model = YOLO("yolov8n.pt")
+                # Fallback an toàn (V5.4 Cleanup)
+                if os.path.exists("models/yolov8s.onnx"):
+                    self.model = YOLO("models/yolov8s.onnx")
+                else:
+                    logger.critical("KHÔNG TÌM THẤY MÔ HÌNH AI NÀO ĐỂ CHẠY!")
 
         self.conf = 0.15
         self.config_path = config_path

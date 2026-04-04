@@ -1,7 +1,7 @@
 # 🏛️ Kiến trúc Hệ thống — Sentinel Warden AI V5.0
 
-> **Phiên bản**: V5.0 Enterprise Edition  
-> **Cập nhật**: 03/04/2026
+> **Phiên bản**: V5.3 Enterprise Edition  
+> **Cập nhật**: 04/04/2026
 
 ---
 
@@ -35,7 +35,7 @@
 │  ├─ seed_test_data.py  <-- Sinh dữ liệu kiểm thử
 │  └─ wifi.py            <-- Tool test băng thông mạng
 │
-├─ templates/            <-- Frontend (HTML/JS/TailwindCSS)
+├─ templates/            <-- Frontend (HTML/JS/Vanilla CSS, Typography Inter)
 └─ docs/                 <-- Tài liệu hệ thống
 ```
 
@@ -99,7 +99,7 @@ graph TD
 │   Camera N  │ ──────────▶ │  AIWorker #N    │ ────────▶  │   SocketIO Ch N │
 └─────────────┘             └─────────────────┘            └─────────────────┘
 ```
-V5.0 sử dụng mô hình **1 Camera = 1 Worker riêng biệt**. Mỗi Worker tự quản lý luồng RTSP, Engine AI và truyền dữ liệu real-time qua SocketIO namespace riêng (`stats_update_{id}`).
+V5.0 sử dụng mô hình **1 Camera = 1 Worker riêng biệt**. Mỗi Worker tự quản lý luồng RTSP và truyền dữ liệu real-time qua SocketIO namespace riêng (`stats_update_{id}`). Riêng Engine AI (YOLO) được **nạp 1 lần duy nhất tại WorkerManager** và chia sẻ (Shared Model) cho mọi Worker để tối ưu hóa RAM.
                            │  1. Đọc frame từ Buffer                        │
                            │  2. self.engine.detect_people(frame)            │
                            │     ├── YOLOv8s track(persist=True, classes=[0])│
@@ -110,8 +110,11 @@ V5.0 sử dụng mô hình **1 Camera = 1 Worker riêng biệt**. Mỗi Worker t
                            │     ├── AN TOÀN (count ≥ 1 hoặc vắng < 1s)    │
                            │     ├── RỜI VỊ TRÍ (vắng 1s–5s)              │
                            │     └── VI PHẠM (vắng ≥ 5s → Chụp ảnh + DB)  │
-                           │  4. Encode JPEG (640x360, quality=50)          │
-                           │  5. Emit qua SocketIO mỗi 0.2s                │
+                           │  4. AI Frame Skipping (V5.1):                  │
+                           │     └── Chỉ thực hiện AI mỗi 1/AI_MAX_FPS giây │
+                           │  5. Preprocessing Optimization (V5.2):         │
+                           │     └── Resize 640x360 một lần cho AI & Web    │
+                           │  6. Encode JPEG (50) & Emit Dashboard (10Hz)   │
                            └─────────────────────────────────────────────────┘
 
 ### 2.2 Luồng Ghi Vi phạm
@@ -142,7 +145,7 @@ Khi công nhân quay lại (count_in_roi ≥ 1):
 
 | Thành phần | Mô tả |
 |---|---|
-| **Model** | `YOLO("models/yolov8s.pt", task="detect")` — Small model, 11.1M params, 28.6 GFLOPs |
+| **Model (Shared)** | `YOLO("models/yolov8s_openvino_model")` — Định dạng OpenVINO (FP16) được tối ưu hóa riêng cho Intel CPU (i7 Gen 13) để đạt tốc độ nhận diện cao nhất. |
 | **Tracking** | `model.track(frame, persist=True, classes=[0], conf=0.15)` — Track người liên tục, cấp ID duy nhất |
 | **Confidence** | `0.15` — Ngưỡng rất thấp để bắt được tư thế khó (cúi, quay lưng) |
 | **Persistence** | `self.memory = {}` — Dict lưu {track_id: {detection, frames_missing}}. Max 5 frame |
@@ -166,8 +169,9 @@ Khi công nhân quay lại (count_in_roi ≥ 1):
 | **Daemon Thread** | `self.daemon = True` — Tự tắt khi chương trình chính thoát |
 | **Bộ đệm 1s** | Vắng < 1 giây vẫn giữ trạng thái AN TOÀN (chống nháy cấp business) |
 | **Ngưỡng 5s** | Vắng ≥ 5s → Chụp ảnh bằng chứng + Ghi Database |
-| **Dashboard 5Hz** | Gửi dữ liệu lên Web mỗi 0.2 giây — Đủ mượt mà cho người giám sát |
+| **Dashboard 10Hz** | Gửi dữ liệu lên Web mỗi 0.1 - 0.2 giây — Đảm bảo độ mượt mà tối đa |
 | **FPS Realtime** | `1.0 / (elapsed + 0.001)` — Đo tốc độ xử lý thực tế mỗi frame |
+| **AI Frame Skipping**| `AI_MAX_FPS` (Mặc định 10) — Giới hạn số lần gọi AI mỗi giây để tối ưu CPU/GPU |
 
 ### 3.4 `routes.py` — REST API
 

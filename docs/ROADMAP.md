@@ -25,7 +25,7 @@
 ### 1.1 Những gì đã hoàn thành ✅
 | Tính năng | Trạng thái | Ghi chú |
 |---|---|---|
-| Nhận diện người (YOLOv8s) | ✅ Hoàn thành | Độ chính xác cao, chạy trên CPU i7 Gen 13 |
+| Nhận diện người (YOLOv8s) | ✅ Hoàn thành | Dùng chung Model (Shared Model) giúp tối ưu bộ nhớ RAM |
 | Quét đa điểm dọc thân (5 điểm) | ✅ Hoàn thành | Từ chân lên vai, bao phủ mọi tư thế |
 | Bộ nhớ đệm chống nháy (Persistence) | ✅ Hoàn thành | Giữ vết 5 khung hình, loại bỏ "ghost box" |
 | Vẽ vùng an toàn ROI trên Web | ✅ Hoàn thành | Đa giác tùy chỉnh, chuột trái/phải |
@@ -33,7 +33,7 @@
 | Hỗ trợ nhiều Camera (V5.0) | ✅ Hoàn thành | Chạy đa luồng song song thông qua WorkerManager |
 | Tự động đồng bộ Database (V5.0)| ✅ Hoàn thành | Cơ chế Auto-Sync theo file .env |
 | Quy hoạch cấu trúc Enterprise (V5.0)| ✅ Hoàn thành | Tách biệt Source (`src/`), Database (`data/`), Model (`models/`) |
-| **Nâng cấp Giao diện Light & Smooth (V5.0)**| ✅ Hoàn thành | Giao diện hiện đại, tối ưu UX, chia nhỏ Template |
+| **Nâng cấp Giao diện & Typography (V5.0)**| ✅ Hoàn thành | Giao diện Premium, sử dụng font Inter, UI tiếng Việt chuẩn hóa |
 
 ### 1.2 Hạn chế hiện tại ⚠️
 | Hạn chế | Mức độ | Ảnh hưởng |
@@ -379,7 +379,7 @@
 
 ## 📝 Ghi chú cuối
 
-Dự án **Sentinel Warden AI** đã đạt được nền tảng vững chắc tại phiên bản V4.5. Với kiến trúc Docker hóa và CI/CD tự động, hệ thống đã sẵn sàng cho việc mở rộng quy mô mà không cần viết lại từ đầu. Mỗi giai đoạn mở rộng sẽ được xây dựng "chồng lên" nền tảng hiện có, đảm bảo tính ổn định và liên tục trong vận hành.
+Dự án **Sentinel Warden AI** đã đạt được nền tảng vững chắc tại phiên bản V5.0. Với kiến trúc Docker hóa, CI/CD tự động, tối ưu hoá bộ nhớ phần cứng bằng Shared Model và UI Typography chuẩn Enterprise, hệ thống đã sẵn sàng cho việc mở rộng quy mô. Mỗi giai đoạn mở rộng sẽ được xây dựng "chồng lên" nền tảng hiện có, đảm bảo tính ổn định vững chắc.
 
 **Ưu tiên cần làm ngay**: 
 1. Kết nối LAN cho Camera (thay WiFi)

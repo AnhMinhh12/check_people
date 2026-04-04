@@ -11,7 +11,7 @@ from src.core.ai_engine import AIEngine
 
 
 class AIWorker(threading.Thread):
-    def __init__(self, camera_id, name, rtsp_url, model_instance, config_path, alarm_delay, db_manager, socketio):
+    def __init__(self, camera_id, name, rtsp_url, model_instance, config_path, alarm_delay, ai_max_fps, db_manager, socketio):
         super().__init__()
         self.camera_id = camera_id
         self.name = name
@@ -22,6 +22,7 @@ class AIWorker(threading.Thread):
         self.db_manager = db_manager
         self.socketio = socketio
         self.alarm_delay = alarm_delay
+        self.ai_max_fps = ai_max_fps
         self.running = False
         self.daemon = True
         
@@ -55,6 +56,8 @@ class AIWorker(threading.Thread):
         total_missing_time = 0.0
         last_loop_time = time.time()
         last_emit_time = 0
+        last_ai_time = 0
+        last_detections = []
         screenshot_taken = False
         current_violation_img = None
         fps_avg = 0
@@ -76,8 +79,19 @@ class AIWorker(threading.Thread):
                 time.sleep(0.01)
                 continue
 
-            # Xử lý AI
-            detections = self.engine.detect_people(frame)
+            # --- TIỀN XỬ LÝ (V5.2 Optimization) ---
+            # Resize 1 lần duy nhất cho cả AI và Dashboard
+            frame_raw = frame 
+            frame_small = cv2.resize(frame_raw, (640, 360))
+
+            # Xử lý AI (Theo định mức AI_MAX_FPS - V5.1 Optimization)
+            now = time.time()
+            if now - last_ai_time >= (1.0 / self.ai_max_fps):
+                # Nạp frame_small giúp YOLO xử lý cực nhanh (V5.2)
+                last_detections = self.engine.detect_people(frame_small)
+                last_ai_time = now
+            
+            detections = last_detections
             count_in_roi = sum(1 for d in detections if d["is_safe"])
             
             # Logic vi phạm
@@ -95,8 +109,8 @@ class AIWorker(threading.Thread):
                     status = "AN TOÀN" # Đang trong 1 giây "đệm"
                 
                 if status == "VI PHẠM" and not screenshot_taken:
-                    # Chụp ảnh bằng chứng ngay lúc vi phạm bắt đầu (từ 5s)
-                    current_violation_img = self._save_violation_snapshot(frame, detections)
+                    # Chụp ảnh bằng chứng sử dụng FRAME GỐC (High Res)
+                    current_violation_img = self._save_violation_snapshot(frame_raw, detections)
                     screenshot_taken = True
             else:
                 # Nếu trước đó đang có vi phạm, giờ quay lại -> CHỐT SỔ
@@ -118,10 +132,9 @@ class AIWorker(threading.Thread):
             # Gửi dữ liệu Dashboard (Tăng lên 10Hz - 0.1s nếu AI đủ nhanh)
             emit_interval = 0.1 if fps_avg > 10 else 0.2
             if now - last_emit_time > emit_interval:
-                # Resize ảnh sạch (không vẽ đè) trả về Dashboard
-                mini_frame = cv2.resize(frame, (640, 360))
+                # Sử dụng trực tiếp frame_small đã resize ở bước Tiền xử lý (V5.2)
                 # Nâng chất lượng JPEG lên 50 (cân bằng giữa độ nét và tốc độ)
-                _, buffer = cv2.imencode('.jpg', mini_frame, [cv2.IMWRITE_JPEG_QUALITY, 50])
+                _, buffer = cv2.imencode('.jpg', frame_small, [cv2.IMWRITE_JPEG_QUALITY, 50])
                 img_base64 = base64.b64encode(buffer).decode('utf-8')
 
                 self.system_data.update({

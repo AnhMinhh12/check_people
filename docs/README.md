@@ -18,12 +18,12 @@
 
 | Tính năng | Mô tả |
 |---|---|
-| 🧠 **AI Nhận diện (YOLOv8n)** | Phát hiện người đa luồng, tối ưu hóa cho CPU với bộ nhớ đệm chống nháy |
-| 🛡 **Quản lý Đa Camera** | Hỗ trợ 100+ luồng RTSP đồng thời, cấu hình linh hoạt qua file `.env` |
+| 🧠 **AI Nhận diện (YOLOv8s)** | Shared Model AI nạp 1 lần tối ưu hóa bộ nhớ cho đa luồng, tránh quá tải RAM |
+| 🛡 **Quản lý Đa Camera** | Hỗ trợ hàng loạt luồng RTSP đồng thời, cấu hình linh hoạt qua file `.env` |
 | 🧹 **Dọn dẹp DB Tự động** | Cơ chế **Hard Delete** — Tự động xóa camera rác không có trong file cấu hình |
 | ⏱️ **Cảnh báo Thông minh** | Hiển thị vạch ngưỡng vắng mặt trực quan trên thanh tiến trình Dashboard |
 | 📸 **Ghi bằng chứng** | Tự động chụp ảnh kèm Bounding Box, ghi tên Camera vào lịch sử vi phạm |
-| 🖥️ **Dashboard Premium** | Giao diện Glassmorphism V5.0, HUD cảnh báo toàn màn hình, cột Tên Camera trong Nhật ký |
+| 🖥️ **Dashboard Premium** | Typography Inter hiện đại chuẩn Enterprise, HUD cảnh báo toàn màn hình, UI tiếng Việt |
 | ⚙️ **Vẽ ROI trực tiếp** | Chuột trái chấm điểm, chuột phải hoàn tác, có hướng dẫn |
 | 🐋 **Docker & CI/CD** | Push code → Tự động Build + Push Image lên GitHub Registry |
 
@@ -115,7 +115,7 @@ ALARM_DELAY_SECONDS=5.0
 4. Nhấn **"Lưu Cấu Hình"** để AI bắt đầu áp dụng vùng mới
 5. AI sẽ **tự động tải lại ROI** ngay lập tức (hot reload, không cần restart)
 
-> **💡 Mẹo**: Nên vẽ vùng rộng hơn thực tế một chút — AI V4.5 quét đến tận vai nên cần đủ không gian phía trên đầu công nhân.
+> **💡 Mẹo**: Nên vẽ vùng rộng hơn thực tế một chút — AI V5.0 quét đến tận vai nên cần đủ không gian phía trên đầu công nhân.
 
 ---
 

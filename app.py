@@ -25,6 +25,8 @@ ALARM_DELAY = float(os.getenv("ALARM_DELAY_SECONDS", 5.0))
 FLASK_PORT = int(os.getenv("FLASK_PORT", 5000))
 FLASK_HOST = os.getenv("FLASK_HOST", "0.0.0.0")
 FLASK_DEBUG = os.getenv("FLASK_DEBUG", "False").lower() in ("true", "1", "t")
+AI_MAX_FPS = float(os.getenv("AI_MAX_FPS", 10.0))
+
 
 db_manager = DatabaseManager()
 
@@ -61,7 +63,7 @@ def index():
 
 if __name__ == '__main__':
     # Khởi động AI cho tất cả camera
-    manager.start_workers(MODEL_PATH, ALARM_DELAY)
+    manager.start_workers(MODEL_PATH, ALARM_DELAY, AI_MAX_FPS)
     
     print(f"\n>>> WARDEN ENTERPRISE SERVER READY AT http://{FLASK_HOST}:{FLASK_PORT}\n")
     socketio.run(app, host=FLASK_HOST, port=FLASK_PORT, debug=FLASK_DEBUG, allow_unsafe_werkzeug=True)

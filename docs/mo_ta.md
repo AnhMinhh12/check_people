@@ -1,7 +1,7 @@
 # 🛡️ Sentinel Warden AI — Tài liệu Mô tả Hệ thống V5.0
 
-> **Phiên bản**: V5.0 Enterprise Edition  
-> **Cập nhật lần cuối**: 03/04/2026  
+> **Phiên bản**: V5.3 Enterprise Edition  
+> **Cập nhật lần cuối**: 04/04/2026  
 > **Repository**: [github.com/AnhMinhh12/check_people](https://github.com/AnhMinhh12/check_people)
 
 ---
@@ -20,11 +20,11 @@ V5.0 giới thiệu khả năng quản lý động danh sách camera qua biến 
 
 ---
 
-## 🚀 2. Điểm Nổi bật Phiên bản V4.5
+## 🚀 2. Điểm Nổi bật Phiên bản V5.0 Enterprise
 
 | # | Tính năng | Mô tả |
 |---|---|---|
-| 1 | **YOLOv8s (Small Model)** | Nâng cấp từ YOLOv8n (Nano) lên bản Small. Tăng độ chính xác đáng kể cho các tư thế khó: cúi người, quay lưng, đứng nghiêng |
+| 1 | **YOLOv8s & Shared Model Memory** | Nạp model AI 1 lần duy nhất tại WorkerManager và chia sẻ cho toàn bộ camera, tối ưu hóa RAM tối đa. Nâng cấp lên bản YOLOv8s tăng xác suất nhận diện tư thế khó. |
 | 2 | **Trí nhớ tạm (Persistence Buffer)** | Bộ đệm 5 khung hình — Khi AI bị mất dấu người đột ngột (do che khuất tạm thời), hệ thống giữ lại vị trí cũ thêm 5 frame, triệt tiêu hoàn toàn hiện tượng "nháy" Bounding Box |
 | 3 | **Quét đa điểm dọc thân (Vertical Scan)** | Quét 5 điểm dọc cơ thể: Chân (1.0) → Đầu gối (0.8) → Hông (0.6) → Ngực (0.4) → Vai (0.2). Chỉ cần 1/5 điểm lọt vào ROI = AN TOÀN |
 | 4 | **YOLO Built-in Tracker** | Sử dụng `model.track(persist=True)` để cấp ID duy nhất cho mỗi người. Kết hợp với Persistence Buffer để theo dõi chính xác từng cá nhân |
@@ -32,6 +32,10 @@ V5.0 giới thiệu khả năng quản lý động danh sách camera qua biến 
 | 6 | **Bộ đệm trạng thái 1 giây** | Sau khi AI mất dấu, chờ thêm 1 giây xác nhận trước khi chuyển từ AN TOÀN → RỜI VỊ TRÍ. Tránh cảnh báo giả |
 | 7 | **CI/CD Docker tự động** | Push code lên GitHub → Tự động Build Docker Image → Đẩy lên GitHub Container Registry |
 | 8 | **Hướng dẫn vẽ ROI trên giao diện** | Tab Cấu hình hiển thị panel hướng dẫn 3 bước (Chuột trái chấm điểm, Chuột phải hoàn tác, Vẽ khép kín) |
+| 9 | **UI/UX Typography Inter** | Giao diện sử dụng font Inter chuẩn Enterprise, terminology tối ưu và localize thành tiếng Việt chuẩn thống nhất |
+| 10| **AI Frame Skipping (Optimization)** | V5.1 giới hạn số lần gọi AI Model giúp giảm tải CPU/GPU lên tới 70% |
+| 11| **Preprocessing Optimization** | V5.2 thực hiện Resize 1 lần duy nhất cho AI và Web, giảm tải RAM và CPU đáng kể |
+| 12| **OpenVINO Engine (Acceleration)** | V5.3 chuyển sang định dạng OpenVINO (FP16) tối ưu riêng cho chip Intel, tăng FPS gấp 2-3 lần. |
 
 ---
 
@@ -115,7 +119,8 @@ check_person/
 │   ├── core/
 │   │   ├── ai_engine.py            # AI Engine
 │   │   ├── camera_stream.py        # Streamer
-│   │   └── database.py             # Database Manager V5.0
+│   │   ├── database.py             # Database Manager V5.0
+│   │   └── worker_manager.py       # Quản lý AI Worker và Share Model (Tối ưu RAM)
 │   ├── services/
 │   │   └── ai_worker.py            # AI Worker Logic & Logging tách biệt
 │   └── api/
@@ -147,9 +152,10 @@ RTSP_URL2=rtsp://admin:password@192.168.1.11:554/stream
 CAMERA_NAME2=Khu Vực Bốc Xếp
 
 # Thông số AI
-MODEL_PATH=models/yolov8n.pt
+MODEL_PATH=models/yolov8s_openvino_model
 CONFIDENCE_THRESHOLD=0.15
 ALARM_DELAY_SECONDS=5.0
+AI_MAX_FPS=10
 ```
 
 ### 6.2 Các thông số quan trọng
