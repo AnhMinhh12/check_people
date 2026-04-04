@@ -11,14 +11,14 @@ from src.core.ai_engine import AIEngine
 
 
 class AIWorker(threading.Thread):
-    def __init__(self, camera_id, name, rtsp_url, model_path, config_path, alarm_delay, db_manager, socketio):
+    def __init__(self, camera_id, name, rtsp_url, model_instance, config_path, alarm_delay, db_manager, socketio):
         super().__init__()
         self.camera_id = camera_id
         self.name = name
         self.streamer = CameraStreamer(rtsp_url)
         # Mỗi camera có file cấu hình ROI riêng trong thư mục data/
-        self.config_path = f"data/roi_config_{camera_id}.json"
-        self.engine = AIEngine(model_path, self.config_path)
+        self.config_path = config_path
+        self.engine = AIEngine(model_instance=model_instance, config_path=self.config_path)
         self.db_manager = db_manager
         self.socketio = socketio
         self.alarm_delay = alarm_delay

@@ -2,34 +2,36 @@
 <div id="tab-history" class="tab-content space-y-12 animate-fadeIn max-w-[1400px] mx-auto">
     <div class="flex flex-col lg:flex-row justify-between gap-10 border-b border-slate-100 pb-12">
         <div class="space-y-2">
-            <h2 class="text-4xl font-black italic tracking-tighter text-slate-800 uppercase font-headline">Bằng chứng Sự cố <span class="text-danger not-italic">NHẬT KÝ</span></h2>
-            <p class="text-[10px] text-slate-400 font-extrabold uppercase tracking-[0.3em]">Kho lưu trữ lịch sử của tất cả các vi phạm an ninh được phát hiện</p>
+            <h2 class="text-3xl font-extrabold tracking-tight text-slate-800 uppercase font-headline">TRUY XUẤT <span class="text-danger tracking-tight">HỒ SƠ SỰ CỐ</span></h2>
+            <p class="text-xs text-slate-400 font-medium uppercase tracking-wider">Quản lý bằng chứng và dữ liệu xác thực vi phạm</p>
         </div>
         <div class="custom-dropdown relative w-full lg:w-[350px]" id="history-dropdown-container">
-            <button onclick="toggleDropdown('history-dropdown')" 
+            <button onclick="toggleDropdown('history-dropdown')"
                 class="w-full h-16 bg-white border border-slate-100 rounded-[2.5rem] text-[10px] font-black text-slate-700 uppercase pl-16 pr-10 shadow-2xl flex items-center justify-between group hover:border-danger/30 transition-all">
                 <div class="flex items-center gap-4">
-                     <span class="material-symbols-outlined text-danger font-bold text-lg">filter_list</span>
-                     <span id="history-dropdown-label">Báo cáo hệ thống chung (Tất cả)</span>
+                    <span class="material-symbols-outlined text-danger font-bold text-lg">filter_list</span>
+                    <span id="history-dropdown-label">Báo cáo hệ thống chung (Tất cả)</span>
                 </div>
-                <span class="material-symbols-outlined text-slate-300 group-hover:text-danger transition-colors">expand_more</span>
+                <span
+                    class="material-symbols-outlined text-slate-300 group-hover:text-danger transition-colors">expand_more</span>
             </button>
-            
+
             <!-- Hidden Input stores the camera ID -->
             <input type="hidden" id="history-cam-select" value="" />
 
-            <div id="history-dropdown" class="hidden absolute top-full left-0 w-full mt-4 bg-white/95 backdrop-blur-xl border border-slate-100 rounded-[2.5rem] shadow-5xl z-50 overflow-hidden animate-slideUp">
+            <div id="history-dropdown"
+                class="hidden absolute top-full left-0 w-full mt-4 bg-white/95 backdrop-blur-xl border border-slate-100 rounded-[2.5rem] shadow-5xl z-50 overflow-hidden animate-slideUp">
                 <div class="py-4">
-                     <div onclick="selectDropdownOption('history', '', 'Toàn bộ hệ thống')" 
-                          class="px-10 py-5 text-[10px] font-black text-slate-700 uppercase hover:bg-danger hover:text-white cursor-pointer transition-all border-b border-slate-50 last:border-0">
-                          Toàn bộ hệ thống
-                     </div>
-                     {% for cam in cameras %}
-                     <div onclick="selectDropdownOption('history', '{{ cam.id }}', '{{ cam.name }}')" 
-                          class="px-10 py-5 text-[10px] font-black text-slate-700 uppercase hover:bg-danger hover:text-white cursor-pointer transition-all border-b border-slate-50 last:border-0">
-                          {{ cam.name }}
-                     </div>
-                     {% endfor %}
+                    <div onclick="selectDropdownOption('history', '', 'Toàn bộ hệ thống')"
+                        class="px-10 py-5 text-[10px] font-black text-slate-700 uppercase hover:bg-danger hover:text-white cursor-pointer transition-all border-b border-slate-50 last:border-0">
+                        Toàn bộ hệ thống
+                    </div>
+                    {% for cam in cameras %}
+                    <div onclick="selectDropdownOption('history', '{{ cam.id }}', '{{ cam.name }}')"
+                        class="px-10 py-5 text-[10px] font-black text-slate-700 uppercase hover:bg-danger hover:text-white cursor-pointer transition-all border-b border-slate-50 last:border-0">
+                        {{ cam.name }}
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
         </div>
@@ -53,13 +55,15 @@
                 </tbody>
             </table>
         </div>
-        
+
         <div id="history-empty" class="hidden p-32 text-center flex flex-col items-center">
             <div class="h-20 w-20 bg-slate-50 rounded-full flex items-center justify-center text-slate-200 mb-6">
                 <span class="material-symbols-outlined text-4xl">inventory_2</span>
             </div>
-            <p class="text-xs font-black uppercase text-slate-400 tracking-widest leading-none mb-2">Không tìm thấy dữ liệu sự cố</p>
-            <p class="text-[10px] text-slate-300 font-bold uppercase tracking-widest">Trạng thái an ninh toàn cầu: ĐẠT</p>
+            <p class="text-xs font-black uppercase text-slate-400 tracking-widest leading-none mb-2">Không tìm thấy dữ
+                liệu sự cố</p>
+            <p class="text-[10px] text-slate-300 font-bold uppercase tracking-widest">Trạng thái an ninh toàn cầu: ĐẠT
+            </p>
         </div>
     </div>
 </div>

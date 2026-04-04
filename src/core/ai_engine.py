@@ -10,18 +10,22 @@ import torch
 logger = logging.getLogger("AIEngine")
 
 class AIEngine:
-    def __init__(self, model_path="yolov8n.pt", config_path="roi_config.json"):
-        # Chuyển sang model Nano (yolov8n.pt) để đạt FPS tối đa trên CPU
-        final_model = model_path if os.path.exists(model_path) else "yolov8n.pt"
-        
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        
-        try:
-            self.model = YOLO(final_model, task="detect")
-            logger.info(f">>> AI Engine khởi tạo thành công với Model: {final_model} trên {self.device}")
-        except Exception as e:
-            logger.error(f"Lỗi khởi tạo AI: {e}")
-            self.model = YOLO("yolov8n.pt")
+    def __init__(self, model_instance=None, model_path="yolov8n.pt", config_path="roi_config.json"):
+        # Nếu đã có Model được nạp sẵn (Singleton), sử dụng nó để tiết kiệm RAM (V5.0 Optimization)
+        if model_instance is not None:
+            self.model = model_instance
+            # Lấy thiết bị từ tham số đầu tiên của mô hình
+            self.device = next(self.model.parameters()).device
+            logger.info(f">>> AI Engine tái sử dụng Model dùng chung trên {self.device}")
+        else:
+            final_model = model_path if os.path.exists(model_path) else "yolov8n.pt"
+            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            try:
+                self.model = YOLO(final_model, task="detect")
+                logger.info(f">>> AI Engine khởi tạo Model mới: {final_model} trên {self.device}")
+            except Exception as e:
+                logger.error(f"Lỗi khởi tạo AI: {e}")
+                self.model = YOLO("yolov8n.pt")
 
         self.conf = 0.15
         self.config_path = config_path

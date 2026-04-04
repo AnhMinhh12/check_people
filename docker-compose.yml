@@ -1,7 +1,8 @@
 services:
   warden-app:
-    # Sử dụng bản v5.0 Enterprise chuẩn từ GitHub (Đã Pull)
-    image: ghcr.io/anhminhh12/check_people:main
+    # Build trực tiếp từ Dockerfile cục bộ để cập nhật thay đổi HTML/CSS
+    build: .
+    image: warden-ai:local
     container_name: sentinel-warden-v5-enterprise
     restart: always
     ports:
@@ -17,22 +18,23 @@ services:
       # Không gắn ./:/app trực tiếp để tránh xung đột venv giữa Windows/Linux
     environment:
       - TZ=Asia/Ho_Chi_Minh
+      - FLASK_DEBUG=True
       # Ép OpenCV/FFMPEG sử dụng giao thức TCP thay vì UDP để ổn định hơn trong Docker
       - OPENCV_FFMPEG_CAPTURE_OPTIONS=rtsp_transport;tcp
       - PYTHONUNBUFFERED=1
-    
+
     # Giới hạn tài nguyên để container không chiếm dụng quá mức (Tùy chọn)
     # mem_limit: 4g
     # cpus: '4.0'
-    
+
     # Tăng bộ nhớ đệm cho Container để xử lý nén/giải nén luồng Camera nặng
     shm_size: '2gb'
     # Cho phép truy cập phần cứng sâu hơn (ví dụ để dùng Camera USB nếu có)
     privileged: true
-    
+
     # Cơ chế tự động kiểm tra trạng thái container (V4.0)
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:5000/api/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
