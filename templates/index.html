@@ -3,217 +3,215 @@
 {% block title %}Dashboard | Warden AI Enterprise{% endblock %}
 
 {% block content %}
-    <!-- MAIN DASHBOARD CONTENT -->
-    <div id="tab-dashboard" class="tab-content active space-y-12">
-        {% include 'components/focused_view.html' %}
-        {% include 'components/dashboard_grid.html' %}
-    </div>
+<!-- MAIN DASHBOARD CONTENT -->
+<div id="tab-dashboard" class="tab-content active space-y-12">
+    {% include 'components/focused_view.html' %}
+    {% include 'components/dashboard_grid.html' %}
+</div>
 
-    <!-- ANALYSIS CONTENT -->
-    {% include 'components/analysis_content.html' %}
+<!-- ANALYSIS CONTENT -->
+{% include 'components/analysis_content.html' %}
 
-    <!-- HISTORY CONTENT -->
-    {% include 'components/history_content.html' %}
+<!-- HISTORY CONTENT -->
+{% include 'components/history_content.html' %}
 {% endblock %}
 
 {% block scripts %}
-    <script id="cameras-data" type="application/json">{{ cameras|tojson|safe }}</script>
+<script id="cameras-data" type="application/json">{{ cameras|tojson|safe }}</script>
 
-    <script>
-        const ALL_CAMERAS = JSON.parse(document.getElementById('cameras-data').textContent);
-        const socket = io();
-        let currentTab = 'dashboard';
-        let focusedCamId = null;
-        let selectedROIPoints = [];
-        let analyticsChartInstance = null;
+<script>
+    const ALL_CAMERAS = JSON.parse(document.getElementById('cameras-data').textContent);
+    const socket = io();
+    let currentTab = 'dashboard';
+    let focusedCamId = null;
+    let selectedROIPoints = [];
+    let analyticsChartInstance = null;
 
-        /** CUSTOM DROPDOWN LOGIC */
-        function toggleDropdown(id) {
-            const el = document.getElementById(id);
-            const isHidden = el.classList.contains('hidden');
-            
-            // Close all other dropdowns first
+    /** CUSTOM DROPDOWN LOGIC */
+    function toggleDropdown(id) {
+        const el = document.getElementById(id);
+        const isHidden = el.classList.contains('hidden');
+
+        // Close all other dropdowns first
+        document.querySelectorAll('.custom-dropdown > div').forEach(d => d.classList.add('hidden'));
+
+        if (isHidden) el.classList.remove('hidden');
+    }
+
+    function selectDropdownOption(type, value, label) {
+        // Update the hidden input value
+        const input = document.getElementById(`${type}-cam-select`);
+        input.value = value;
+
+        // Update the UI label
+        const labelEl = document.getElementById(`${type}-dropdown-label`);
+        labelEl.innerText = label;
+
+        // Close dropdown
+        document.getElementById(`${type}-dropdown`).classList.add('hidden');
+
+        // Trigger action
+        if (type === 'analysis') updateAnalysis();
+        if (type === 'history') loadHistory();
+    }
+
+    // Close dropdowns when clicking outside
+    window.addEventListener('click', function (e) {
+        if (!e.target.closest('.custom-dropdown')) {
             document.querySelectorAll('.custom-dropdown > div').forEach(d => d.classList.add('hidden'));
-            
-            if (isHidden) el.classList.remove('hidden');
         }
+    });
 
-        function selectDropdownOption(type, value, label) {
-            // Update the hidden input value
-            const input = document.getElementById(`${type}-cam-select`);
-            input.value = value;
-            
-            // Update the UI label
-            const labelEl = document.getElementById(`${type}-dropdown-label`);
-            labelEl.innerText = label;
-            
-            // Close dropdown
-            document.getElementById(`${type}-dropdown`).classList.add('hidden');
-            
-            // Trigger action
-            if (type === 'analysis') updateAnalysis();
-            if (type === 'history') loadHistory();
-        }
+    /** TAB MANAGEMENT */
+    function showTab(id) {
+        currentTab = id;
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.getElementById('tab-' + id).classList.add('active');
 
-        // Close dropdowns when clicking outside
-        window.addEventListener('click', function(e) {
-            if (!e.target.closest('.custom-dropdown')) {
-                document.querySelectorAll('.custom-dropdown > div').forEach(d => d.classList.add('hidden'));
-            }
+        // Update Navigation UI
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+            btn.classList.remove('active-nav', 'text-white');
+            btn.classList.add('text-slate-400');
         });
-
-        /** TAB MANAGEMENT */
-        function showTab(id) {
-            currentTab = id;
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.getElementById('tab-' + id).classList.add('active');
-
-            // Update Navigation UI
-            document.querySelectorAll('.nav-btn').forEach(btn => {
-                btn.classList.remove('active-nav', 'text-white');
-                btn.classList.add('text-slate-400');
-            });
-            const activeBtn = document.getElementById('nav-' + id);
-            if (activeBtn) {
-                activeBtn.classList.add('active-nav', 'text-white');
-                activeBtn.classList.remove('text-slate-400');
-            }
-
-            // Global Title Update
-            const titleMap = { 'dashboard': 'Bảng điều khiển Giám sát', 'analysis': 'Báo cáo Phân tích Trí tuệ', 'history': 'Bằng chứng & Nhật ký' };
-            document.getElementById('tab-title').innerText = titleMap[id] || 'WARDEN AI';
-
-            if (id === 'history') loadHistory();
-            if (id === 'analysis') updateAnalysis();
+        const activeBtn = document.getElementById('nav-' + id);
+        if (activeBtn) {
+            activeBtn.classList.add('active-nav', 'text-white');
+            activeBtn.classList.remove('text-slate-400');
         }
 
-        /** CAMERA FOCUS LOGIC */
-        function focusCamera(id, name) {
-            focusedCamId = Number(id);
-            document.getElementById('grid-view').classList.add('hidden');
-            document.getElementById('focused-view').classList.remove('hidden');
-            document.getElementById('focused-cam-name').innerText = `NGUỒN TRỰC TIẾP: ${name.toUpperCase()}`;
-            document.getElementById('active-cam-id').innerText = `CAM-${String(id).padStart(2, '0')}`;
+        // Global Title Update
+        const titleMap = { 'dashboard': 'Bảng điều khiển Giám sát', 'analysis': 'Báo cáo Phân tích', 'history': 'Bằng chứng & Nhật ký' };
+        document.getElementById('tab-title').innerText = titleMap[id] || 'WARDEN AI';
 
-            // Clean previous listeners and focus on this one
-            socket.off(`stats_update_${id}`).on(`stats_update_${id}`, (data) => {
-                if (currentTab !== 'dashboard') return;
-                performDashboardUpdate(data);
-                performGridCardUpdate(id, data);
-            });
-        }
+        if (id === 'history') loadHistory();
+        if (id === 'analysis') updateAnalysis();
+    }
 
-        function closeFocusView() {
-            focusedCamId = null;
-            document.getElementById('focused-view').classList.add('hidden');
-            document.getElementById('grid-view').classList.remove('hidden');
-            document.getElementById('focused-cam-name').innerText = "GLOBAL DASHBOARD LIVE FEED";
-            document.getElementById('roi-config-panel').classList.add('hidden');
-            document.getElementById('video-feed').src = "";
-            setupGlobalListeners(); // Re-attach light listeners for grid
-        }
+    /** CAMERA FOCUS LOGIC */
+    function focusCamera(id, name) {
+        focusedCamId = Number(id);
+        document.getElementById('grid-view').classList.add('hidden');
+        document.getElementById('focused-view').classList.remove('hidden');
+        document.getElementById('focused-cam-name').innerText = `NGUỒN TRỰC TIẾP: ${name.toUpperCase()}`;
+        document.getElementById('active-cam-id').innerText = `CAM-${String(id).padStart(2, '0')}`;
 
-        /** DATA UPDATES */
-        function performGridCardUpdate(id, data) {
-            const countEl = document.getElementById(`grid-count-${id}`);
-            const labelEl = document.getElementById(`grid-label-${id}`);
-            const statusEl = document.getElementById(`grid-status-${id}`);
+        // Clean previous listeners and focus on this one
+        socket.off(`stats_update_${id}`).on(`stats_update_${id}`, (data) => {
+            if (currentTab !== 'dashboard') return;
+            performDashboardUpdate(data);
+            performGridCardUpdate(id, data);
+        });
+    }
 
-            if (countEl) countEl.innerText = data.workers_in_roi;
-            if (labelEl) {
-                labelEl.innerText = data.status;
-                labelEl.className = `px-4 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest border shadow-sm transition-all ${
-                    data.status === 'AN TOÀN' ? 'bg-secondary/10 text-secondary border-secondary/10' : 'bg-danger/10 text-danger border-danger/10 animate-pulse'
+    function closeFocusView() {
+        focusedCamId = null;
+        document.getElementById('focused-view').classList.add('hidden');
+        document.getElementById('grid-view').classList.remove('hidden');
+        document.getElementById('focused-cam-name').innerText = "GLOBAL DASHBOARD LIVE FEED";
+        document.getElementById('roi-config-panel').classList.add('hidden');
+        document.getElementById('video-feed').src = "";
+        setupGlobalListeners(); // Re-attach light listeners for grid
+    }
+
+    /** DATA UPDATES */
+    function performGridCardUpdate(id, data) {
+        const countEl = document.getElementById(`grid-count-${id}`);
+        const labelEl = document.getElementById(`grid-label-${id}`);
+        const statusEl = document.getElementById(`grid-status-${id}`);
+
+        if (countEl) countEl.innerText = data.workers_in_roi;
+        if (labelEl) {
+            labelEl.innerText = data.status;
+            labelEl.className = `px-4 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest border shadow-sm transition-all ${data.status === 'AN TOÀN' ? 'bg-secondary/10 text-secondary border-secondary/10' : 'bg-danger/10 text-danger border-danger/10 animate-pulse'
                 }`;
-            }
-            if (statusEl) {
-                statusEl.innerText = data.camera_connected ? 'ĐANG KẾT NỐI' : 'MẤT TÍN HIỆU';
-                statusEl.className = `px-4 py-1.5 text-[9px] font-black rounded-full border transition-all shadow-sm ${
-                    data.camera_connected ? 'bg-secondary text-white border-secondary' : 'bg-slate-100 text-slate-400 border-slate-200'
+        }
+        if (statusEl) {
+            statusEl.innerText = data.camera_connected ? 'ĐANG KẾT NỐI' : 'MẤT TÍN HIỆU';
+            statusEl.className = `px-4 py-1.5 text-[9px] font-black rounded-full border transition-all shadow-sm ${data.camera_connected ? 'bg-secondary text-white border-secondary' : 'bg-slate-100 text-slate-400 border-slate-200'
                 }`;
-            }
+        }
+    }
+
+    function performDashboardUpdate(data) {
+        const feedImg = document.getElementById('video-feed');
+        const roiBgImg = document.getElementById('roi-bg');
+        if (data.image) {
+            const b64Data = 'data:image/jpeg;base64,' + data.image;
+            if (feedImg) feedImg.src = b64Data;
+            if (roiBgImg) roiBgImg.src = b64Data;
         }
 
-        function performDashboardUpdate(data) {
-            const feedImg = document.getElementById('video-feed');
-            const roiBgImg = document.getElementById('roi-bg');
-            if (data.image) {
-                const b64Data = 'data:image/jpeg;base64,' + data.image;
-                if (feedImg) feedImg.src = b64Data;
-                if (roiBgImg) roiBgImg.src = b64Data;
+        document.getElementById('worker-count').innerText = data.workers_in_roi;
+        document.getElementById('fps-display').innerText = data.fps;
+        const statusDisp = document.getElementById('status-display');
+        statusDisp.innerText = data.status;
+        statusDisp.style.borderColor = data.status === 'AN TOÀN' ? '#10b981' : '#ef4444';
+        statusDisp.style.color = data.status === 'AN TOÀN' ? '#10b981' : '#ef4444';
+
+        document.getElementById('missing-time').innerText = data.missing_time + 's';
+        const threshold = data.alarm_threshold || 5.0;
+        document.getElementById('threshold-label').innerText = threshold + 's';
+        const bar = document.getElementById('time-bar');
+        bar.style.width = Math.min((data.missing_time / threshold) * 100, 100) + '%';
+        bar.className = data.status === 'AN TOÀN' ? 'bg-primary h-full transition-all duration-300 shadow-[0_0_15px_rgba(59,130,246,0.3)]' : 'bg-danger h-full transition-all duration-300 shadow-[0_0_15px_rgba(239,68,68,0.3)]';
+
+        // Overlay Drawing
+        const mainCanvas = document.getElementById('dashboard-canvas');
+        if (mainCanvas && feedImg && feedImg.clientWidth > 0) {
+            mainCanvas.width = feedImg.clientWidth;
+            mainCanvas.height = feedImg.clientHeight;
+            const mCtx = mainCanvas.getContext('2d');
+            mCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+            const sx = mainCanvas.width / 640; const sy = mainCanvas.height / 360;
+
+            if (data.roi_on_server && data.roi_on_server.length > 0) {
+                mCtx.strokeStyle = data.status === 'AN TOÀN' ? '#10b981' : '#ef4444';
+                mCtx.lineWidth = 4; mCtx.beginPath();
+                data.roi_on_server.forEach((point, idx) => {
+                    const px = point[0] * sx; const py = point[1] * sy;
+                    idx === 0 ? mCtx.moveTo(px, py) : mCtx.lineTo(px, py);
+                });
+                mCtx.closePath(); mCtx.stroke();
+                mCtx.fillStyle = data.status === 'AN TOÀN' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.1)';
+                mCtx.fill();
             }
 
-            document.getElementById('worker-count').innerText = data.workers_in_roi;
-            document.getElementById('fps-display').innerText = data.fps;
-            const statusDisp = document.getElementById('status-display');
-            statusDisp.innerText = data.status;
-            statusDisp.style.borderColor = data.status === 'AN TOÀN' ? '#10b981' : '#ef4444';
-            statusDisp.style.color = data.status === 'AN TOÀN' ? '#10b981' : '#ef4444';
-            
-            document.getElementById('missing-time').innerText = data.missing_time + 's';
-            const threshold = data.alarm_threshold || 5.0;
-            document.getElementById('threshold-label').innerText = threshold + 's';
-            const bar = document.getElementById('time-bar');
-            bar.style.width = Math.min((data.missing_time / threshold) * 100, 100) + '%';
-            bar.className = data.status === 'AN TOÀN' ? 'bg-primary h-full transition-all duration-300 shadow-[0_0_15px_rgba(59,130,246,0.3)]' : 'bg-danger h-full transition-all duration-300 shadow-[0_0_15px_rgba(239,68,68,0.3)]';
-
-            // Overlay Drawing
-            const mainCanvas = document.getElementById('dashboard-canvas');
-            if (mainCanvas && feedImg && feedImg.clientWidth > 0) {
-                mainCanvas.width = feedImg.clientWidth;
-                mainCanvas.height = feedImg.clientHeight;
-                const mCtx = mainCanvas.getContext('2d');
-                mCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
-                const sx = mainCanvas.width / 640; const sy = mainCanvas.height / 360;
-
-                if (data.roi_on_server && data.roi_on_server.length > 0) {
-                    mCtx.strokeStyle = data.status === 'AN TOÀN' ? '#10b981' : '#ef4444';
-                    mCtx.lineWidth = 4; mCtx.beginPath();
-                    data.roi_on_server.forEach((point, idx) => {
-                        const px = point[0] * sx; const py = point[1] * sy;
-                        idx === 0 ? mCtx.moveTo(px, py) : mCtx.lineTo(px, py);
-                    });
-                    mCtx.closePath(); mCtx.stroke();
-                    mCtx.fillStyle = data.status === 'AN TOÀN' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.1)';
-                    mCtx.fill();
-                }
-
-                if (data.latest_detections) {
-                    data.latest_detections.forEach(det => {
-                        const box = det.box;
-                        const bx1 = box[0] * sx; const by1 = box[1] * sy;
-                        const bx2 = box[2] * sx; const by2 = box[3] * sy;
-                        mCtx.strokeStyle = det.is_safe ? '#10b981' : '#f59e0b';
-                        mCtx.lineWidth = 3;
-                        mCtx.beginPath();
-                        mCtx.roundRect(bx1, by1, bx2 - bx1, by2 - by1, 8);
-                        mCtx.stroke();
-                        // Sublabel
-                        mCtx.fillStyle = det.is_safe ? '#10b981' : '#f59e0b';
-                        mCtx.font = 'bold 10px Inter';
-                        mCtx.fillText(det.is_safe ? 'SECURE' : 'UNAUTHORIZED', bx1, by1 - 5);
-                    });
-                }
+            if (data.latest_detections) {
+                data.latest_detections.forEach(det => {
+                    const box = det.box;
+                    const bx1 = box[0] * sx; const by1 = box[1] * sy;
+                    const bx2 = box[2] * sx; const by2 = box[3] * sy;
+                    mCtx.strokeStyle = det.is_safe ? '#10b981' : '#f59e0b';
+                    mCtx.lineWidth = 3;
+                    mCtx.beginPath();
+                    mCtx.roundRect(bx1, by1, bx2 - bx1, by2 - by1, 8);
+                    mCtx.stroke();
+                    // Sublabel
+                    mCtx.fillStyle = det.is_safe ? '#10b981' : '#f59e0b';
+                    mCtx.font = 'bold 10px Inter';
+                    mCtx.fillText(det.is_safe ? 'SECURE' : 'UNAUTHORIZED', bx1, by1 - 5);
+                });
             }
         }
+    }
 
-        /** HISTORY HANDLER */
-        async function loadHistory() {
-            const camId = document.getElementById('history-cam-select').value;
-            const historyBody = document.getElementById('history-table');
-            const emptyState = document.getElementById('history-empty');
-            try {
-                const response = await fetch(`/api/history?camera_id=${camId}`);
-                const violations = await response.json();
-                
-                if (violations.length === 0) {
-                    historyBody.innerHTML = '';
-                    emptyState.classList.remove('hidden');
-                    return;
-                }
-                
-                emptyState.classList.add('hidden');
-                historyBody.innerHTML = violations.map(v => `
+    /** HISTORY HANDLER */
+    async function loadHistory() {
+        const camId = document.getElementById('history-cam-select').value;
+        const historyBody = document.getElementById('history-table');
+        const emptyState = document.getElementById('history-empty');
+        try {
+            const response = await fetch(`/api/history?camera_id=${camId}`);
+            const violations = await response.json();
+
+            if (violations.length === 0) {
+                historyBody.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            historyBody.innerHTML = violations.map(v => `
                     <tr class="hover:bg-slate-50 transition-colors group">
                         <td class="px-12 py-8">
                             <div class="flex items-center gap-3">
@@ -238,144 +236,144 @@
                         </td>
                     </tr>
                 `).join('');
-            } catch (err) { console.error("History fetch error:", err); }
-        }
+        } catch (err) { console.error("History fetch error:", err); }
+    }
 
-        function openEvidenceModal(imageUrl) {
-            const mImg = document.getElementById('modal-img');
-            mImg.src = imageUrl;
-            document.getElementById('image-modal').classList.remove('hidden');
-        }
+    function openEvidenceModal(imageUrl) {
+        const mImg = document.getElementById('modal-img');
+        mImg.src = imageUrl;
+        document.getElementById('image-modal').classList.remove('hidden');
+    }
 
-        /** ANALYTICS HANDLER */
-        async function updateAnalysis() {
-            const camId = document.getElementById('analysis-cam-select').value;
-            try {
-                const res = await fetch(`/api/analytics?camera_id=${camId}`);
-                const data = await res.json();
-                document.getElementById('analytics-duration').innerText = data.total_duration_minutes + "m";
-                document.getElementById('analytics-count').innerText = data.total_violations;
-                renderChart(data);
-            } catch (e) { console.error("Analytics Error:", e); }
-        }
+    /** ANALYTICS HANDLER */
+    async function updateAnalysis() {
+        const camId = document.getElementById('analysis-cam-select').value;
+        try {
+            const res = await fetch(`/api/analytics?camera_id=${camId}`);
+            const data = await res.json();
+            document.getElementById('analytics-duration').innerText = data.total_duration_minutes + "m";
+            document.getElementById('analytics-count').innerText = data.total_violations;
+            renderChart(data);
+        } catch (e) { console.error("Analytics Error:", e); }
+    }
 
-        function renderChart(serverData) {
-            const ctx = document.getElementById('analysis-chart').getContext('2d');
-            if (analyticsChartInstance) analyticsChartInstance.destroy();
-            
-            const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-            gradient.addColorStop(0, 'rgba(59, 130, 246, 0.4)');
-            gradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
+    function renderChart(serverData) {
+        const ctx = document.getElementById('analysis-chart').getContext('2d');
+        if (analyticsChartInstance) analyticsChartInstance.destroy();
 
-            analyticsChartInstance = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'],
-                    datasets: [{
-                        label: 'Security Breaches',
-                        data: [Math.floor(Math.random()*10), Math.floor(Math.random()*12), Math.floor(Math.random()*5), 8, 15, 3, 2], // Simulated for UI
-                        borderColor: '#3b82f6',
-                        backgroundColor: gradient,
-                        fill: true,
-                        tension: 0.5,
-                        borderWidth: 6,
-                        pointRadius: 6,
-                        pointBackgroundColor: '#ffffff',
-                        pointBorderColor: '#3b82f6',
-                        pointBorderWidth: 4,
-                        pointHoverRadius: 10,
-                        pointHoverBorderWidth: 8
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { 
-                        y: { grid: { color: '#f1f5f9', lineWidth: 2 }, border: { dash: [5, 5] }, ticks: { font: { family: "'Inter'", weight: 'bold' } } }, 
-                        x: { grid: { display: false }, ticks: { font: { family: "'Inter'", weight: 'bold' } } } 
-                    }
+        const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+        gradient.addColorStop(0, 'rgba(59, 130, 246, 0.4)');
+        gradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
+
+        analyticsChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'],
+                datasets: [{
+                    label: 'Security Breaches',
+                    data: [Math.floor(Math.random() * 10), Math.floor(Math.random() * 12), Math.floor(Math.random() * 5), 8, 15, 3, 2], // Simulated for UI
+                    borderColor: '#3b82f6',
+                    backgroundColor: gradient,
+                    fill: true,
+                    tension: 0.5,
+                    borderWidth: 6,
+                    pointRadius: 6,
+                    pointBackgroundColor: '#ffffff',
+                    pointBorderColor: '#3b82f6',
+                    pointBorderWidth: 4,
+                    pointHoverRadius: 10,
+                    pointHoverBorderWidth: 8
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { grid: { color: '#f1f5f9', lineWidth: 2 }, border: { dash: [5, 5] }, ticks: { font: { family: "'Inter'", weight: 'bold' } } },
+                    x: { grid: { display: false }, ticks: { font: { family: "'Inter'", weight: 'bold' } } }
                 }
-            });
-        }
-
-        /** ROI CONFIGURATION */
-        const roiCanvas = document.getElementById('roi-canvas');
-        const roiCtx = roiCanvas ? roiCanvas.getContext('2d') : null;
-
-        function toggleROIConfig() {
-            const panel = document.getElementById('roi-config-panel');
-            panel.classList.toggle('hidden');
-            if (!panel.classList.contains('hidden')) setTimeout(synchronizeROICanvas, 100);
-        }
-
-        function synchronizeROICanvas() {
-            const bgImg = document.getElementById('roi-bg');
-            if (roiCanvas && bgImg) {
-                roiCanvas.width = bgImg.clientWidth;
-                roiCanvas.height = bgImg.clientHeight;
-                renderROIPolygon();
             }
+        });
+    }
+
+    /** ROI CONFIGURATION */
+    const roiCanvas = document.getElementById('roi-canvas');
+    const roiCtx = roiCanvas ? roiCanvas.getContext('2d') : null;
+
+    function toggleROIConfig() {
+        const panel = document.getElementById('roi-config-panel');
+        panel.classList.toggle('hidden');
+        if (!panel.classList.contains('hidden')) setTimeout(synchronizeROICanvas, 100);
+    }
+
+    function synchronizeROICanvas() {
+        const bgImg = document.getElementById('roi-bg');
+        if (roiCanvas && bgImg) {
+            roiCanvas.width = bgImg.clientWidth;
+            roiCanvas.height = bgImg.clientHeight;
+            renderROIPolygon();
         }
+    }
 
-        if (roiCanvas) {
-            roiCanvas.onmousedown = (e) => {
-                const rect = roiCanvas.getBoundingClientRect();
-                if (e.button === 0) selectedROIPoints.push([e.clientX - rect.left, e.clientY - rect.top]);
-                else if (e.button === 2) selectedROIPoints.pop();
-                renderROIPolygon();
-            };
-            roiCanvas.oncontextmenu = () => false;
-        }
-
-        function renderROIPolygon() {
-            if (!roiCtx || !roiCanvas) return;
-            roiCtx.clearRect(0, 0, roiCanvas.width, roiCanvas.height);
-            if (selectedROIPoints.length === 0) return;
-
-            roiCtx.fillStyle = '#3b82f6'; roiCtx.strokeStyle = '#3b82f6'; roiCtx.lineWidth = 4;
-            selectedROIPoints.forEach(p => {
-                roiCtx.beginPath(); roiCtx.arc(p[0], p[1], 8, 0, Math.PI * 2); roiCtx.fill();
-                roiCtx.strokeStyle = 'white'; roiCtx.lineWidth = 3; roiCtx.stroke();
-            });
-
-            roiCtx.beginPath(); roiCtx.moveTo(selectedROIPoints[0][0], selectedROIPoints[0][1]);
-            selectedROIPoints.forEach(p => roiCtx.lineTo(p[0], p[1]));
-            if (selectedROIPoints.length > 2) {
-                roiCtx.closePath();
-                roiCtx.fillStyle = 'rgba(59, 130, 246, 0.2)';
-                roiCtx.fill();
-            }
-            roiCtx.strokeStyle = '#3b82f6'; roiCtx.stroke();
-        }
-
-        function clearROI() { selectedROIPoints = []; renderROIPolygon(); }
-        async function saveROI() {
-            if (!roiCanvas) return;
-            const sx = 640 / roiCanvas.width; const sy = 360 / roiCanvas.height;
-            const finalPoints = selectedROIPoints.map(p => [Math.round(p[0] * sx), Math.round(p[1] * sy)]);
-
-            await fetch('/api/config_roi', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ camera_id: focusedCamId, points: finalPoints })
-            });
-            alert('Security ROI Protocol Updated for CAM-' + focusedCamId);
-        }
-
-        /** GLOBAL INIT */
-        function setupGlobalListeners() {
-            ALL_CAMERAS.forEach(cam => {
-                socket.off(`stats_update_${cam.id}`).on(`stats_update_${cam.id}`, (data) => {
-                    performGridCardUpdate(cam.id, data);
-                    if (focusedCamId === cam.id) performDashboardUpdate(data);
-                });
-            });
-        }
-
-        window.onload = () => {
-            setupGlobalListeners();
-            loadHistory();
-            window.addEventListener('resize', synchronizeROICanvas);
+    if (roiCanvas) {
+        roiCanvas.onmousedown = (e) => {
+            const rect = roiCanvas.getBoundingClientRect();
+            if (e.button === 0) selectedROIPoints.push([e.clientX - rect.left, e.clientY - rect.top]);
+            else if (e.button === 2) selectedROIPoints.pop();
+            renderROIPolygon();
         };
-    </script>
+        roiCanvas.oncontextmenu = () => false;
+    }
+
+    function renderROIPolygon() {
+        if (!roiCtx || !roiCanvas) return;
+        roiCtx.clearRect(0, 0, roiCanvas.width, roiCanvas.height);
+        if (selectedROIPoints.length === 0) return;
+
+        roiCtx.fillStyle = '#3b82f6'; roiCtx.strokeStyle = '#3b82f6'; roiCtx.lineWidth = 4;
+        selectedROIPoints.forEach(p => {
+            roiCtx.beginPath(); roiCtx.arc(p[0], p[1], 8, 0, Math.PI * 2); roiCtx.fill();
+            roiCtx.strokeStyle = 'white'; roiCtx.lineWidth = 3; roiCtx.stroke();
+        });
+
+        roiCtx.beginPath(); roiCtx.moveTo(selectedROIPoints[0][0], selectedROIPoints[0][1]);
+        selectedROIPoints.forEach(p => roiCtx.lineTo(p[0], p[1]));
+        if (selectedROIPoints.length > 2) {
+            roiCtx.closePath();
+            roiCtx.fillStyle = 'rgba(59, 130, 246, 0.2)';
+            roiCtx.fill();
+        }
+        roiCtx.strokeStyle = '#3b82f6'; roiCtx.stroke();
+    }
+
+    function clearROI() { selectedROIPoints = []; renderROIPolygon(); }
+    async function saveROI() {
+        if (!roiCanvas) return;
+        const sx = 640 / roiCanvas.width; const sy = 360 / roiCanvas.height;
+        const finalPoints = selectedROIPoints.map(p => [Math.round(p[0] * sx), Math.round(p[1] * sy)]);
+
+        await fetch('/api/config_roi', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ camera_id: focusedCamId, points: finalPoints })
+        });
+        alert('Security ROI Protocol Updated for CAM-' + focusedCamId);
+    }
+
+    /** GLOBAL INIT */
+    function setupGlobalListeners() {
+        ALL_CAMERAS.forEach(cam => {
+            socket.off(`stats_update_${cam.id}`).on(`stats_update_${cam.id}`, (data) => {
+                performGridCardUpdate(cam.id, data);
+                if (focusedCamId === cam.id) performDashboardUpdate(data);
+            });
+        });
+    }
+
+    window.onload = () => {
+        setupGlobalListeners();
+        loadHistory();
+        window.addEventListener('resize', synchronizeROICanvas);
+    };
+</script>
 {% endblock %}

@@ -12,6 +12,8 @@ numpy<2.0.0
 opencv-python-headless>=4.8.0
 openvino==2024.0.0
 onnx>=1.15.0
+onnxruntime>=1.15.0
+lapx>=0.5.5
 
 # System Utilities
 psutil==5.9.5

@@ -1,6 +1,6 @@
-# 🛡️ Sentinel Warden AI — Tài liệu Mô tả Hệ thống V5.0
+# 🛡️ Sentinel Warden AI — Tài liệu Mô tả Hệ thống V5.5
 
-> **Phiên bản**: V5.3 Enterprise Edition  
+> **Phiên bản**: V5.5 Enterprise Edition (Optimized ONNX)  
 > **Cập nhật lần cuối**: 04/04/2026  
 > **Repository**: [github.com/AnhMinhh12/check_people](https://github.com/AnhMinhh12/check_people)
 
@@ -131,7 +131,8 @@ check_person/
 │   ├── roi_config_*.json  
 │   └── violations/                 # Ảnh bằng chứng vi phạm
 │
-├── models/                         # Mô hình AI (.pt)
+├── models/                         # Mô hình AI đã tối ưu
+│   └── yolov8s.onnx                # Phiên bản ONNX Runtime (45MB)
 │
 ├── logs/                           # Nhật ký hoạt động từng Camera
 │
@@ -152,10 +153,11 @@ RTSP_URL2=rtsp://admin:password@192.168.1.11:554/stream
 CAMERA_NAME2=Khu Vực Bốc Xếp
 
 # Thông số AI
-MODEL_PATH=models/yolov8s_openvino_model
+MODEL_PATH=models/yolov8s.onnx
 CONFIDENCE_THRESHOLD=0.15
 ALARM_DELAY_SECONDS=5.0
 AI_MAX_FPS=10
+FLASK_DEBUG=False
 ```
 
 ### 6.2 Các thông số quan trọng
@@ -202,13 +204,15 @@ AI_MAX_FPS=10
 
 ### 8.3 Dependencies (requirements.txt)
 ```
-Flask==2.2.5
-Flask-SocketIO==5.3.4
+Flask==2.3.3
+Flask-SocketIO==5.3.6
 numpy<2.0.0
-ultralytics
-python-dotenv==1.0.0
+ultralytics>=8.3.0
+python-dotenv==1.0.1
 eventlet==0.33.3
-opencv-python-headless
+opencv-python-headless>=4.8.0
+onnxruntime>=1.15.0
+lapx>=0.5.5
 ```
 
 ---

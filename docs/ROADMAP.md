@@ -1,8 +1,8 @@
 # 🗺️ Lộ trình Phát triển & Kế hoạch Mở rộng — Sentinel Warden AI
 
-> **Phiên bản hiện tại**: V5.0 (Enterprise Edition - Light Mode)  
-> **Ngày cập nhật**: 03/04/2026  
-> **Trạng thái**: Đã vận hành ổn định mô hình Đa Camera, Đồng bộ DB và Nâng cấp Giao diện Modular.
+> **Phiên bản hiện tại**: V5.5 (Enterprise Edition - Optimized ONNX)  
+> **Ngày cập nhật**: 04/04/2026  
+> **Trạng thái**: Đào tạo và triển khai thành công mô hình ONNX Runtime, tối ưu hóa khởi động và dọn dẹp hệ thống.
 
 ---
 
@@ -331,7 +331,8 @@
 - [x] Tích hợp cơ chế dọn dẹp Database (Hard Delete)
 - [x] Hiển thị ngưỡng báo động trực quan trên Dashboard
 - [x] Bổ sung cột Tên Camera vào Nhật ký vi phạm
-- [ ] Tối ưu OpenVINO cho Intel iGPU (thử lại khi Ultralytics cập nhật)
+- [x] Triển khai ONNX Engine & Tối ưu hóa i7 Gen 13 (V5.5)
+- [x] Dọn dẹp mã nguồn rác và Startup Optimization (V5.4.1)
 
 ### Phase 2 — Mở rộng Đa Camera (2-4 tháng)
 - [ ] Thiết kế kiến trúc Multi-Camera Worker

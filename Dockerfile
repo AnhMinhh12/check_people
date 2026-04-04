@@ -33,8 +33,8 @@ EXPOSE 5000
 
 # Metadata nhãn của dự án (Tùy chọn)
 LABEL maintainer="it07"
-LABEL version="5.0"
-LABEL description="Sentinel Warden AI Safety Monitoring System - Enterprise Edition"
+LABEL version="5.5"
+LABEL description="Sentinel Warden AI Safety Monitoring System - Enterprise Edition (Optimized ONNX Runtime)"
 
 # Lệnh khởi chạy chính
 # Sử dụng trực tiếp app.py với Flask-SocketIO + eventlet (từ requirements)

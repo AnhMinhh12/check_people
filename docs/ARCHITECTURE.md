@@ -1,6 +1,6 @@
-# 🏛️ Kiến trúc Hệ thống — Sentinel Warden AI V5.0
+# 🏛️ Kiến trúc Hệ thống — Sentinel Warden AI V5.5
 
-> **Phiên bản**: V5.3 Enterprise Edition  
+> **Phiên bản**: V5.5 Enterprise Edition (Optimized ONNX)  
 > **Cập nhật**: 04/04/2026
 
 ---
@@ -21,9 +21,8 @@
 │  ├─ core/              <-- Database, WorkerManager, AI Engine
 │  └─ services/          <-- Background Threads (AIWorker)
 │
-├─ models/               <-- (Chứa pre-trained weights)
-│  ├─ yolov8n.pt         
-│  └─ yolov8s.pt         
+├─ models/               <-- (Chứa mô hình đã nạp sẵn)
+│  └─ yolov8s.onnx       <-- Model ONNX Runtime tối ưu
 │
 ├─ data/                 <-- (Dữ liệu động, cần backup thường xuyên)
 │  ├─ sentinel.db        <-- Database SQLite chính
@@ -145,7 +144,7 @@ Khi công nhân quay lại (count_in_roi ≥ 1):
 
 | Thành phần | Mô tả |
 |---|---|
-| **Model (Shared)** | `YOLO("models/yolov8s_openvino_model")` — Định dạng OpenVINO (FP16) được tối ưu hóa riêng cho Intel CPU (i7 Gen 13) để đạt tốc độ nhận diện cao nhất. |
+| **Model (Shared)** | `YOLO("models/yolov8s.onnx")` — Định dạng ONNX Runtime được tối ưu hóa cho CPU Intel i7 Gen 13 để đạt tốc độ ổn định và chính xác cao nhất. |
 | **Tracking** | `model.track(frame, persist=True, classes=[0], conf=0.15)` — Track người liên tục, cấp ID duy nhất |
 | **Confidence** | `0.15` — Ngưỡng rất thấp để bắt được tư thế khó (cúi, quay lưng) |
 | **Persistence** | `self.memory = {}` — Dict lưu {track_id: {detection, frames_missing}}. Max 5 frame |

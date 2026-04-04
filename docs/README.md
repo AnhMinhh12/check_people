@@ -1,14 +1,13 @@
-    # 🛡️ Sentinel Warden AI — Safety Monitoring Platform
+# 🛡️ Sentinel Warden AI — Safety Monitoring Platform
 
 [![CI/CD](https://github.com/AnhMinhh12/check_people/actions/workflows/docker-build.yml/badge.svg)](https://github.com/AnhMinhh12/check_people/actions)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)
-![YOLO](https://img.shields.io/badge/YOLOv8s-Small-00FFFF?logo=yolo)
+![YOLO](https://img.shields.io/badge/YOLOv8s-ONNX-00FFFF?logo=yolo)
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
-![License](https://img.shields.io/badge/License-Internal-gray)
 
-**Nền tảng giám sát an toàn lao động bằng AI** đa luồng (Multi-Camera), quản lý tập trung và dọn dẹp Database tự động.
+**Nền tảng giám sát an toàn lao động bằng AI** đa luồng (Multi-Camera), tối ưu hóa ONNX Runtime cho hiệu năng cực cao.
  
-> **Phiên bản hiện tại**: V5.0 Enterprise Edition
+> **Phiên bản hiện tại**: V5.5 Enterprise Edition (Optimized ONNX)
 > **Phần cứng đã test**: Intel Core i7-1355U (Gen 13)  
 > **Camera đã test**: Hikvision RTSP  
 
@@ -91,9 +90,10 @@ CAMERA_NAME2=Kho Bãi
 # ... hỗ trợ tới RTSP_URL100
 
 # AI Settings
-MODEL_PATH=models/yolov8n.pt     # Nâng cấp lên Nano cho hệ thống đa luồng
+MODEL_PATH=models/yolov8s.onnx   # Mô hình ONNX đã tối ưu (V5.5)
 CONFIDENCE_THRESHOLD=0.15
 ALARM_DELAY_SECONDS=5.0
+FLASK_DEBUG=False
 ```
 
 ### Các thông số nâng cao (trong code)

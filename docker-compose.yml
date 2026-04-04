@@ -18,7 +18,7 @@ services:
       # Không gắn ./:/app trực tiếp để tránh xung đột venv giữa Windows/Linux
     environment:
       - TZ=Asia/Ho_Chi_Minh
-      - FLASK_DEBUG=True
+      - FLASK_DEBUG=False
       # Ép OpenCV/FFMPEG sử dụng giao thức TCP thay vì UDP để ổn định hơn trong Docker
       - OPENCV_FFMPEG_CAPTURE_OPTIONS=rtsp_transport;tcp
       - PYTHONUNBUFFERED=1
