@@ -1,9 +1,16 @@
+"""
+pipelines/camera_stream.py — Thread đọc liên tục từ RTSP camera
+
+Chuyển từ: src/core/camera_stream.py
+Thay đổi: Không có thay đổi logic, chỉ di chuyển vị trí
+"""
 import cv2
 import threading
 import time
 import logging
 
 logger = logging.getLogger("Camera")
+
 
 class CameraStreamer:
     def __init__(self, url):

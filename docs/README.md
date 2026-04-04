@@ -115,7 +115,7 @@ FLASK_DEBUG=False
 4. Nhấn **"Lưu Cấu Hình"** để AI bắt đầu áp dụng vùng mới
 5. AI sẽ **tự động tải lại ROI** ngay lập tức (hot reload, không cần restart)
 
-> **💡 Mẹo**: Nên vẽ vùng rộng hơn thực tế một chút — AI V5.0 quét đến tận vai nên cần đủ không gian phía trên đầu công nhân.
+> **💡 Mẹo**: Nên vẽ vùng rộng hơn thực tế một chút — AI sử dụng cơ chế Mask Overlap nên chỉ cần bất kỳ phần nào của người công nhân lọt vào vùng ROI là được tính là An Toàn.
 
 ---
 

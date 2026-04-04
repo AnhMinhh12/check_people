@@ -103,7 +103,7 @@ V5.0 sử dụng mô hình **1 Camera = 1 Worker riêng biệt**. Mỗi Worker t
                            │  2. self.engine.detect_people(frame)            │
                            │     ├── YOLOv8s track(persist=True, classes=[0])│
                            │     ├── Persistence Memory Check (5 frames)    │
-                           │     ├── Multi-point ROI Scan (5 points)        │
+                           │     ├── Mask Overlap Scan (np.any)             │
                            │     └── Custom NMS (IoU > 50%)                 │
                            │  3. Logic trạng thái:                          │
                            │     ├── AN TOÀN (count ≥ 1 hoặc vắng < 1s)    │
@@ -148,7 +148,7 @@ Khi công nhân quay lại (count_in_roi ≥ 1):
 | **Tracking** | `model.track(frame, persist=True, classes=[0], conf=0.15)` — Track người liên tục, cấp ID duy nhất |
 | **Confidence** | `0.15` — Ngưỡng rất thấp để bắt được tư thế khó (cúi, quay lưng) |
 | **Persistence** | `self.memory = {}` — Dict lưu {track_id: {detection, frames_missing}}. Max 5 frame |
-| **ROI Check** | Multi-point scan ở tỉ lệ `[1.0, 0.8, 0.6, 0.4, 0.2]` trên trục Y của Bounding Box |
+| **ROI Check** | Quét qua Mask bằng np.any() — Nhanh chóng xác định mọi điểm tiếp xúc với ROI thông qua cấu trúc pixel thay vì tập điểm hữu hạn. |
 | **NMS** | Custom overlap check: IoU > 50% → Loại box nhỏ hơn |
 | **Hot Reload** | So sánh `mtime` của `roi_config.json` mỗi frame. Nếu file thay đổi → Tự động tải lại ROI |
 

@@ -27,7 +27,6 @@ logs/
 .idea/
 
 # Docker rác
-.dockerignore
 Dockerfile.save
 
 # Hệ điều hành

@@ -1,4 +1,4 @@
-# Image Python 3.11 Slim - Hiệu năng cao & Tối ưu Đa Camera (V5.0 Enterprise)
+# Image Python 3.11 Slim - Hiệu năng cao & Tối ưu Đa Camera (V5.5 Enterprise)
 FROM python:3.11-slim
 
 # Ngăn Python tạo file .pyc và bật log trực tiếp ra console
@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Cài đặt Pip & Dependencies (Cơ chế Catching giúp build nhanh hơn)
+# Cài đặt Pip & Dependencies (Cơ chế Caching giúp build nhanh hơn)
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     # Cài đặt Torch bản rút gọn (CPU Only) để bản build nhẹ dĩa cứng
@@ -31,11 +31,10 @@ COPY . .
 # Mở port 5000 cho Server
 EXPOSE 5000
 
-# Metadata nhãn của dự án (Tùy chọn)
+# Metadata nhãn của dự án
 LABEL maintainer="it07"
 LABEL version="5.5"
-LABEL description="Sentinel Warden AI Safety Monitoring System - Enterprise Edition (Optimized ONNX Runtime)"
+LABEL description="Sentinel Warden AI Safety Monitoring System - Enterprise HTMP_AI_Systems Layout"
 
-# Lệnh khởi chạy chính
-# Sử dụng trực tiếp app.py với Flask-SocketIO + eventlet (từ requirements)
-CMD ["python", "app.py"]
+# Lệnh khởi chạy — Sử dụng module path (HTMP_AI_Systems layout)
+CMD ["python", "-m", "app.main"]

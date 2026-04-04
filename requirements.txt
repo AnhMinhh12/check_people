@@ -1,10 +1,13 @@
-# --- Warden Sentinel Enterprise V5.0 Requirements ---
+# --- Warden Sentinel Enterprise V5.5 Requirements ---
 
 # Web Server & Real-time Communication
 Flask==2.3.3
 Flask-SocketIO==5.3.6
 python-dotenv==1.0.1
 eventlet==0.33.3
+
+# Database (SQLAlchemy ORM)
+SQLAlchemy>=2.0.0
 
 # AI & Computer Vision
 ultralytics>=8.3.0
@@ -18,3 +21,6 @@ lapx>=0.5.5
 # System Utilities
 psutil==5.9.5
 requests==2.31.0
+
+# MySQL Driver (Bỏ comment khi deploy Production)
+# PyMySQL>=1.1.0

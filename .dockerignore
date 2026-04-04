@@ -1,0 +1,15 @@
+# Bỏ qua các file không cần thiết để giảm dung lượng Build
+venv/
+.venv/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+.dockerignore
+*.db
+*.bak
+violations/
+node_modules/
+.env
+# Không copy model weights nếu muốn tải từ URL (hoặc copy trực tiếp nếu đã có sẵn)
+# yolov8n.pt

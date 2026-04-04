@@ -26,7 +26,7 @@ V5.0 giới thiệu khả năng quản lý động danh sách camera qua biến 
 |---|---|---|
 | 1 | **YOLOv8s & Shared Model Memory** | Nạp model AI 1 lần duy nhất tại WorkerManager và chia sẻ cho toàn bộ camera, tối ưu hóa RAM tối đa. Nâng cấp lên bản YOLOv8s tăng xác suất nhận diện tư thế khó. |
 | 2 | **Trí nhớ tạm (Persistence Buffer)** | Bộ đệm 5 khung hình — Khi AI bị mất dấu người đột ngột (do che khuất tạm thời), hệ thống giữ lại vị trí cũ thêm 5 frame, triệt tiêu hoàn toàn hiện tượng "nháy" Bounding Box |
-| 3 | **Quét đa điểm dọc thân (Vertical Scan)** | Quét 5 điểm dọc cơ thể: Chân (1.0) → Đầu gối (0.8) → Hông (0.6) → Ngực (0.4) → Vai (0.2). Chỉ cần 1/5 điểm lọt vào ROI = AN TOÀN |
+| 3 | **Cơ chế Mask Overlap** | Thuật toán quét điểm ảnh dựa trên Mask của ROI (điền bởi cv2.fillPoly) thay cho kiểm tra hộp điểm, nhanh chóng xác định chính xác sự chồng lấn với vùng an toàn. |
 | 4 | **YOLO Built-in Tracker** | Sử dụng `model.track(persist=True)` để cấp ID duy nhất cho mỗi người. Kết hợp với Persistence Buffer để theo dõi chính xác từng cá nhân |
 | 5 | **Chống đếm trùng (Custom NMS)** | Thuật toán lọc chồng lấn (IoU > 50%) tránh đếm 1 người thành 2 |
 | 6 | **Bộ đệm trạng thái 1 giây** | Sau khi AI mất dấu, chờ thêm 1 giây xác nhận trước khi chuyển từ AN TOÀN → RỜI VỊ TRÍ. Tránh cảnh báo giả |
@@ -35,7 +35,7 @@ V5.0 giới thiệu khả năng quản lý động danh sách camera qua biến 
 | 9 | **UI/UX Typography Inter** | Giao diện sử dụng font Inter chuẩn Enterprise, terminology tối ưu và localize thành tiếng Việt chuẩn thống nhất |
 | 10| **AI Frame Skipping (Optimization)** | V5.1 giới hạn số lần gọi AI Model giúp giảm tải CPU/GPU lên tới 70% |
 | 11| **Preprocessing Optimization** | V5.2 thực hiện Resize 1 lần duy nhất cho AI và Web, giảm tải RAM và CPU đáng kể |
-| 12| **OpenVINO Engine (Acceleration)** | V5.3 chuyển sang định dạng OpenVINO (FP16) tối ưu riêng cho chip Intel, tăng FPS gấp 2-3 lần. |
+| 12| **ONNX Engine (Acceleration)** | V5.3 chuyển sang định dạng ONNX tối ưu thay thế PyTorch nguyên bản, giúp cải thiện tốc độ xử lý FPS đáng kể trên CPU. |
 
 ---
 
@@ -58,9 +58,9 @@ AI Worker Thread (Đọc frame từ Buffer)
     │       → Người vắng < 5 frame? Giữ lại vị trí cũ
     │       → Người vắng > 5 frame? Xóa khỏi bộ nhớ
     │
-    ├── 3) Multi-point ROI Scan (5 điểm dọc thân)
-    │       → Test 5 tỉ lệ: [1.0, 0.8, 0.6, 0.4, 0.2]
-    │       → Bất kỳ điểm nào trong ROI? → is_safe = True
+    ├── 3) Mask Overlap Scan (Chồng lấn điểm ảnh)
+    │       → Sinh Mask của ROI tại kích thước thực qua cv2.fillPoly
+    │       → np.any(box_roi == 255) → Bất kỳ điểm ảnh nào trong box chạm ROI? → is_safe = True
     │
     ├── 4) Custom NMS (Chống đếm trùng)
     │       → Sắp xếp box theo diện tích (lớn → nhỏ)

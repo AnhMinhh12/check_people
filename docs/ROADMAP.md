@@ -26,7 +26,7 @@
 | Tính năng | Trạng thái | Ghi chú |
 |---|---|---|
 | Nhận diện người (YOLOv8s) | ✅ Hoàn thành | Dùng chung Model (Shared Model) giúp tối ưu bộ nhớ RAM |
-| Quét đa điểm dọc thân (5 điểm) | ✅ Hoàn thành | Từ chân lên vai, bao phủ mọi tư thế |
+| Kiểm tra vùng an toàn (Mask Overlap) | ✅ Hoàn thành | Sử dụng OpenCV fillPoly mask và lệnh np.any() cho kiểm tra chồng lấn pixel cực nhanh |
 | Bộ nhớ đệm chống nháy (Persistence) | ✅ Hoàn thành | Giữ vết 5 khung hình, loại bỏ "ghost box" |
 | Vẽ vùng an toàn ROI trên Web | ✅ Hoàn thành | Đa giác tùy chỉnh, chuột trái/phải |
 | Cảnh báo HUD toàn màn hình | ✅ Hoàn thành | Viền đỏ nhấp nháy khi vi phạm |

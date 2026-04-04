@@ -1,6 +1,6 @@
 services:
   warden-app:
-    # Build trực tiếp từ Dockerfile cục bộ để cập nhật thay đổi HTML/CSS
+    # Build trực tiếp từ Dockerfile cục bộ để cập nhật thay đổi code
     build: .
     image: warden-ai:local
     container_name: sentinel-warden-v5-enterprise
@@ -8,12 +8,19 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      # Sơ đồ Volumes V5.0: Tách biệt mã nguồn, dữ liệu và mô hình
+      # Sơ đồ Volumes HTMP_AI_Systems: Mount từng module riêng biệt
       - ./.env:/app/.env
       - ./data:/app/data
       - ./models:/app/models
       - ./logs:/app/logs
-      - ./src:/app/src
+      # Module code (hot-reload khi dev)
+      - ./app:/app/app
+      - ./core:/app/core
+      - ./db:/app/db
+      - ./services:/app/services
+      - ./pipelines:/app/pipelines
+      - ./events:/app/events
+      - ./integrations:/app/integrations
       - ./templates:/app/templates
       # Không gắn ./:/app trực tiếp để tránh xung đột venv giữa Windows/Linux
     environment:
@@ -32,7 +39,7 @@ services:
     # Cho phép truy cập phần cứng sâu hơn (ví dụ để dùng Camera USB nếu có)
     privileged: true
 
-    # Cơ chế tự động kiểm tra trạng thái container (V4.0)
+    # Cơ chế tự động kiểm tra trạng thái container
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:5000/api/health" ]
       interval: 30s
