@@ -63,87 +63,157 @@ class AIWorker(threading.Thread):
         self.is_grid_mode = False   # Chế độ Live Grid (ảnh nhỏ, FPS thấp)
         self.active_event_ids = {} # {zone_name: event_id} 
 
+        # Shared states between AI thread and Emit thread
+        self.last_detections = []
+        self.zones_stats = []
+        self.workers_in_roi = 0
+        self.global_status = STATUS_WAITING
+        self.global_status_code = 3
+        self.state_lock = threading.Lock()
+        self._fps_ema = ai_max_fps 
+
     def run(self):
         self.running = True
         self.streamer.start()
 
-        # Quản lý thời gian vắng mặt độc lập cho từng vùng
-        zone_timers = {} # {machine_name: seconds}
-        zone_screenshots = {} # {machine_name: filename}
-        occupied_confirm_timers = {} # {machine_name: seconds} - Bộ đệm xác nhận người quay lại
-        absent_grace_timers = {} # {machine_name: seconds} - Bộ đệm chống nháy
-        
-        last_loop_time = time.time()
-        last_emit_time = 0
-        last_ai_time = 0
-        last_heartbeat_time = time.time() # Heartbeat 10 phút/lần
-        last_detections = []
-        fps_avg = 0
         self.logger.info(">>> [BAT DAU] He thong Warden AI da san sang va dang giam sat!")
         
-        # 1. Tai cau hinh vung tu Database (Professional Sync)
+        # 1. Tai cau hinh vung tu Database
         self.refresh_zones_from_db()
 
-        last_frame_id = -1
+        # 2. Khoi dong AI Thread chay song song
+        self.ai_thread = threading.Thread(target=self._ai_loop, daemon=True)
+        self.ai_thread.start()
+
+        last_emit_time = 0
         res_logged = False
 
         while self.running:
             loop_start = time.time()
-            
-            # --- KIỂM TRA TẦN SUẤT XỬ LÝ ---
             now = time.time()
-            
-            # --- HEARTBEAT 10 PHUT/LAN DE BIET MAY VAN SONG ---
-            if now - last_heartbeat_time > 600:
-                db_ok = self.event_repo.check_connection()
-                if db_ok:
-                    self.refresh_zones_from_db() # Cap nhat lai ID may neu co thay doi tu Web
-                self.logger.info(f"HBT [CAM {self.camera_id}] May dang chay. Ket noi DB: {'OK' if db_ok else 'FAILED'}")
-                last_heartbeat_time = now
-
-            needs_ai = (now - last_ai_time >= (1.0 / self.ai_max_fps))
-            emit_interval = 0.25 # 4 FPS cho Web
-            needs_web = (now - last_emit_time >= emit_interval)
 
             # --- ĐỌC HÌNH ---
-            t_read_start = time.perf_counter()
-            copy_needed = needs_ai or needs_web
-            ret, frame, frame_id = self.streamer.read(copy=copy_needed)
-            t_read_ms = (time.perf_counter() - t_read_start) * 1000
-
-            if not ret or frame is None:
-                time.sleep(0.01) 
-                continue
-            
-            # Log độ phân giải 1 lần duy nhất để debug CPU
-            if not res_logged:
-                h_cam, w_cam = frame.shape[:2]
-                self.logger.info(f"📊 [CAM {self.camera_id}] Do phan giai nhan: {w_cam}x{h_cam}")
-                res_logged = True
-
-            if frame_id == last_frame_id:
-                # Không có hình mới, chờ một chút để giảm CPU
-                time.sleep(0.005)
-                continue
-
-            last_frame_id = frame_id
+            ret, frame, frame_id = self.streamer.read(copy=False)
 
             # Cập nhật trạng thái kết nối
             if self.system_data["camera_connected"] != ret:
                 self.system_data["camera_connected"] = ret
                 self.socketio.emit(f'stats_update_{self.camera_id}', self.system_data)
 
-            # --- XỬ LÝ AI ---
-            # Chỉ tính toán logic và ROI khi có kết quả AI mới (Tiết kiệm CPU cực lớn)
-            t_ai_ms = 0.0
-            if needs_ai:
+            if not ret or frame is None:
+                time.sleep(0.01)
+                continue
+
+            if not res_logged:
+                h_cam, w_cam = frame.shape[:2]
+                self.logger.info(f"📊 [CAM {self.camera_id}] Do phan giai nhan: {w_cam}x{h_cam}")
+                res_logged = True
+
+            # Xác định khoảng thời gian emit theo chế độ
+            # Focused: 10 FPS (0.1s), Grid: 4 FPS (0.25s), Idle/Background: 1 FPS (1.0s)
+            if self.is_grid_mode:
+                active_emit_interval = 0.25  # 4 FPS
+            elif self.is_focused:
+                active_emit_interval = 0.1   # 10 FPS
+            else:
+                active_emit_interval = 1.0   # 1 FPS (Không stream ảnh để tiết kiệm tối đa)
+
+            if now - last_emit_time >= active_emit_interval:
+                img_base64 = None
+                if self.is_focused:
+                    try:
+                        # Chuẩn hóa 640x360 cho cả hai chế độ để đảm bảo mượt mà 100%
+                        frame_for_web = cv2.resize(frame, GRID_FRAME_SIZE)
+                        
+                        # Sử dụng chất lượng 75 cho Focused, 60 cho Grid
+                        quality = DASHBOARD_JPEG_QUALITY if not self.is_grid_mode else GRID_JPEG_QUALITY
+                        ret_enc, buffer = cv2.imencode('.jpg', frame_for_web, [cv2.IMWRITE_JPEG_QUALITY, quality])
+                        
+                        if ret_enc:
+                            img_base64 = base64.b64encode(buffer).decode('utf-8')
+                        else:
+                            self.logger.error(f"❌ [LỖI] Cam {self.camera_id} - Không thể nén ảnh JPEG")
+                    except Exception as e:
+                        self.logger.error(f"❌ [LỖI] Cam {self.camera_id} - Xử lý ảnh thất bại: {e}")
+
+                # Copy states từ AI Thread dưới lock bảo vệ
+                with self.state_lock:
+                    last_detections = list(self.last_detections)
+                    zones_stats = list(self.zones_stats)
+                    workers_in_roi = self.workers_in_roi
+                    global_status = self.global_status
+                    global_status_code = self.global_status_code
+
+                max_missing = max([z["missing_time"] for z in zones_stats]) if zones_stats else 0.0
+
+                self.system_data.update({
+                    "workers_in_roi": workers_in_roi,
+                    "people_count": len(last_detections),
+                    "total_workers": len(last_detections),
+                    "status": global_status,
+                    "status_code": global_status_code,
+                    "missing_time": round(max_missing, 1),
+                    "latest_detections": last_detections,
+                    "all_rois": [z["points"] for z in self.engine.roi_zones],
+                    "image": img_base64,
+                    "zones_stats": zones_stats,
+                    "alarm_threshold": self.alarm_delay,
+                    "camera_id": self.camera_id,
+                    "fps": round(self._fps_ema, 1)
+                })
+
+                if not self.is_focused and "image" in self.system_data:
+                    del self.system_data["image"]
+                
+                self.socketio.emit(f'stats_update_{self.camera_id}', self.system_data)
+                last_emit_time = now
+
+            # Sleep ngắn để tránh spin loop và giữ phản hồi nhanh
+            loop_duration = time.time() - loop_start
+            wait_time = max(0.005, 0.033 - loop_duration) # cap ở ~30 FPS loop speed
+            time.sleep(wait_time)
+
+    def _ai_loop(self):
+        zone_timers = {} # {machine_name: seconds}
+        zone_screenshots = {} # {machine_name: filename}
+        occupied_confirm_timers = {} # {machine_name: seconds}
+        absent_grace_timers = {} # {machine_name: seconds}
+        
+        last_loop_time = time.time()
+        last_ai_time = 0
+        last_heartbeat_time = time.time()
+        last_detections = []
+        t_ai_ms = 0.0
+        t_read_ms = 0.0
+
+        while self.running:
+            now = time.time()
+            
+            # --- HEARTBEAT 10 PHUT/LAN ---
+            if now - last_heartbeat_time > 600:
+                db_ok = self.event_repo.check_connection()
+                if db_ok:
+                    self.refresh_zones_from_db()
+                self.logger.info(f"HBT [CAM {self.camera_id}] May dang chay. Ket noi DB: {'OK' if db_ok else 'FAILED'}")
+                last_heartbeat_time = now
+
+            # Chạy AI theo tần suất cấu hình AI_MAX_FPS
+            if now - last_ai_time >= (1.0 / self.ai_max_fps):
                 t_ai_start = time.perf_counter()
+                
+                # Đọc hình mới để AI phân tích
+                ret, frame, frame_id = self.streamer.read(copy=True)
+                t_read_ms = (time.perf_counter() - t_ai_start) * 1000
+                
+                if not ret or frame is None:
+                    time.sleep(0.01)
+                    continue
+                
                 frame_small_ai = cv2.resize(frame, (640, 360))
                 last_detections = self.engine.detect_people(frame_small_ai)
-                t_ai_ms = (time.perf_counter() - t_ai_start) * 1000
+                t_ai_ms = (time.perf_counter() - t_ai_start) * 1000 - t_read_ms
                 last_ai_time = now
                 
-                # Logic vi phạm đa vùng
                 time_delta = now - (last_loop_time if last_loop_time > 0 else now)
                 last_loop_time = now
 
@@ -153,7 +223,7 @@ class AIWorker(threading.Thread):
                     for zone_name in det.get("zones", []):
                         occupied_zones.add(zone_name)
 
-                # 2. Cập nhật trạng thái cho từng vùng (Tính toán trước để Snapshot có đủ dữ liệu)
+                # 2. Cập nhật trạng thái cho từng vùng
                 zones_stats = []
                 for zone in self.engine.roi_zones:
                     z_name = zone["name"]
@@ -167,16 +237,12 @@ class AIWorker(threading.Thread):
                     people_in_this_zone = [det for det in last_detections if z_name in det.get("zones", [])]
                     for det in people_in_this_zone: det["is_safe"] = True
 
-                    # Lấy thời gian thực tế để xử lý sự kiện
                     real_missing_time = zone_timers[z_name]
 
                     if not is_occupied:
-                        # --- CHỐNG NHÁY (GRACE PERIOD) ---
-                        # Nếu vừa mất dấu người, chờ 2.0s trước khi thực sự coi là vắng mặt
                         absent_grace_timers[z_name] += time_delta
                         
                         if absent_grace_timers[z_name] >= 2.0:
-                            # Đã quá thời gian ân hạn, thực sự tính là vắng mặt
                             occupied_confirm_timers[z_name] = 0.0
                             zone_timers[z_name] += time_delta
                             real_missing_time = zone_timers[z_name]
@@ -185,12 +251,10 @@ class AIWorker(threading.Thread):
                             elif zone_timers[z_name] >= 1.0: z_status = STATUS_LEFT
                             else: z_status = STATUS_SAFE
                         else:
-                            # Đang trong thời gian ân hạn, giữ nguyên trạng thái và bộ đệm trước đó
                             z_status = STATUS_SAFE if zone_timers[z_name] < 1.0 else STATUS_LEFT
                             if zone_timers[z_name] >= self.alarm_delay: z_status = STATUS_VIOLATION
                     else:
-                        # --- CÓ NGƯỜI: XÁC NHẬN AN TOÀN ---
-                        absent_grace_timers[z_name] = 0.0 # Thấy người là reset ngay grace timer
+                        absent_grace_timers[z_name] = 0.0
                         occupied_confirm_timers[z_name] += time_delta
                         
                         if occupied_confirm_timers[z_name] >= DEFAULT_STATUS_BUFFER_SEC:
@@ -210,21 +274,19 @@ class AIWorker(threading.Thread):
                         "status": z_status,
                         "status_code": status_code,
                         "missing_time": round(zone_timers[z_name], 1),
-                        "real_missing_time": real_missing_time, # Dùng cho Phase 3
+                        "real_missing_time": real_missing_time,
                         "worker_count": len(people_in_this_zone)
                     })
 
-                # 3. Xử lý Sự kiện (Events) dựa trên trạng thái đã tính toán
+                # 3. Xử lý Sự kiện (Events)
                 for z_stat in zones_stats:
                     z_name = z_stat["name"]
                     z_status = z_stat["status"]
                     z_time = z_stat["real_missing_time"]
 
-                    # A. Phát hiện VI PHẠM MỚI
                     if z_status == STATUS_VIOLATION and zone_screenshots[z_name] is None:
-                        # --- TỔNG HỢP DANH SÁCH MÁY ĐANG VI PHẠM TẠI CÙNG THỜI ĐIỂM ---
                         all_violating = [z["name"] for z in zones_stats if z["status"] == STATUS_VIOLATION]
-                        machines_str = ", ".join(all_violating) # Giữ nguyên dấu và hoa/thường từ User
+                        machines_str = ", ".join(all_violating)
 
                         snapshot_name = self._save_violation_snapshot(frame, last_detections, zones_stats=zones_stats, violating_zone_name=z_name)
                         zone_screenshots[z_name] = snapshot_name
@@ -237,11 +299,8 @@ class AIWorker(threading.Thread):
                             machines=machines_str
                         )
                         self.active_event_ids[z_name] = event_id
-                        
-                        # --- THÔNG BÁO WEB CẬP NHẬT LỊCH SỬ ---
                         self.socketio.emit('new_violation', {'camera_id': self.camera_id, 'zone': z_name})
 
-                        # --- GỬI THÔNG BÁO GMAIL ---
                         if snapshot_name:
                             full_snapshot_path = os.path.join(settings.VIOLATIONS_DIR, snapshot_name)
                             gmail_notifier.send_violation_alert(
@@ -252,7 +311,6 @@ class AIWorker(threading.Thread):
                                 snapshot_path=full_snapshot_path
                             )
 
-                    # B. Kết thúc vi phạm (Dọn dẹp screenshot lưu trữ)
                     elif z_status == STATUS_SAFE and zone_screenshots[z_name] is not None:
                         e_id = self.active_event_ids.get(z_name)
                         if e_id:
@@ -263,89 +321,32 @@ class AIWorker(threading.Thread):
                         zone_screenshots[z_name] = None
                         self.active_event_ids[z_name] = None
 
-                # Cập nhật system_data tổng để hiển thị dashboard
-                self.system_data["zones_stats"] = zones_stats
-                self.system_data["workers_in_roi"] = len(occupied_zones)
-                
-                # Trạng thái tổng quát của Camera
-                if any(z["status"] == STATUS_VIOLATION for z in zones_stats):
-                    self.system_data["status"] = STATUS_VIOLATION
-                    self.system_data["status_code"] = 2
-                elif any(z["status"] == STATUS_LEFT for z in zones_stats):
-                    self.system_data["status"] = STATUS_LEFT
-                    self.system_data["status_code"] = 1
-                else:
-                    self.system_data["status"] = STATUS_SAFE
-                    self.system_data["status_code"] = 0
+                # Cập nhật shared states dưới lock bảo vệ
+                with self.state_lock:
+                    self.last_detections = last_detections
+                    self.zones_stats = zones_stats
+                    self.workers_in_roi = len(occupied_zones)
+                    
+                    if any(z["status"] == STATUS_VIOLATION for z in zones_stats):
+                        self.global_status = STATUS_VIOLATION
+                        self.global_status_code = 2
+                    elif any(z["status"] == STATUS_LEFT for z in zones_stats):
+                        self.global_status = STATUS_LEFT
+                        self.global_status_code = 1
+                    else:
+                        self.global_status = STATUS_SAFE
+                        self.global_status_code = 0
 
-            # --- GỬI DỮ LIỆU DASHBOARD ---
-            # Điều chỉnh tần suất emit theo chế độ (Grid mode chậm hơn để tiết kiệm băng thông)
-            active_emit_interval = GRID_EMIT_HZ if self.is_grid_mode else emit_interval
-            if now - last_emit_time >= active_emit_interval:
-                img_base64 = None
-                if self.is_focused:
-                    try:
-                        # TỔI ƯU TỐI THƯỢNG: Chuẩn hóa 640x360 cho cả hai chế độ để đảm bảo mượt mà 100%
-                        # (Giảm từ 960x540 xuống 640x360 để máy Local cũng chạy được như Server)
-                        frame_for_web = cv2.resize(frame, GRID_FRAME_SIZE)
-                        
-                        # Sử dụng chất lượng 75 cho Focused, 60 cho Grid
-                        quality = DASHBOARD_JPEG_QUALITY if not self.is_grid_mode else GRID_JPEG_QUALITY
-                        ret_enc, buffer = cv2.imencode('.jpg', frame_for_web, [cv2.IMWRITE_JPEG_QUALITY, quality])
-                        
-                        if ret_enc:
-                            img_base64 = base64.b64encode(buffer).decode('utf-8')
-                            if not hasattr(self, '_log_count'): self._log_count = 0
-                            self._log_count += 1
-                            if self._log_count % 40 == 0: # Giảm log để không treo console
-                                self.logger.debug(f"📸 [EMIT] Cam {self.camera_id} | Size: {len(img_base64)} | Focus: {self.is_focused} | Grid: {self.is_grid_mode}")
-                        else:
-                            self.logger.error(f"❌ [LỖI] Cam {self.camera_id} - Không thể nén ảnh JPEG")
-                    except Exception as e:
-                        self.logger.error(f"❌ [LỖI] Cam {self.camera_id} - Xử lý ảnh thất bại: {e}")
-
-                max_missing = max([z["missing_time"] for z in zones_stats]) if zones_stats else 0.0
-
-                # --- TÍNH FPS THEO CHU KỲ XỬ LÝ THẬT ---
-                if not hasattr(self, '_fps_ema'): self._fps_ema = self.ai_max_fps
-                loop_duration = time.time() - loop_start
+                loop_duration = time.perf_counter() - t_ai_start
                 curr_fps = 1.0 / (loop_duration + 1e-6)
                 self._fps_ema = self._fps_ema * 0.9 + curr_fps * 0.1
 
-                self.system_data.update({
-                    "total_workers": len(last_detections),
-                    "status": self.system_data.get("status", STATUS_WAITING),
-                    "status_code": self.system_data.get("status_code", 0),
-                    "missing_time": round(max_missing, 1),
-                    "latest_detections": last_detections,
-                    "all_rois": [z["points"] for z in self.engine.roi_zones],
-                    "image": img_base64,
-                    "zones_stats": zones_stats,
-                    "alarm_threshold": self.alarm_delay,
-                    "camera_id": self.camera_id
-                })
+                # --- LOG CHUẨN ĐOÁN MỖI 10 GIÂY ---
+                if getattr(self, '_last_diag_log', 0) < now - 10.0:
+                    self.logger.info(f"⏱️ [CPU DIAGNOSTIC - CAM {self.camera_id}] Toc do keo Frame: {t_read_ms:.1f} ms | Phan tich AI: {t_ai_ms:.1f} ms | Vong lap AI mat tong: {loop_duration*1000:.1f} ms")
+                    self._last_diag_log = now
 
-                if not self.is_focused and "image" in self.system_data:
-                    del self.system_data["image"]
-                
-                self.socketio.emit(f'stats_update_{self.camera_id}', self.system_data)
-                last_emit_time = now
-
-            # --- NGHỈ VÀ TÍNH FPS ---
-            loop_duration = time.time() - loop_start
-            # Nếu không cần làm gì nhiều, nghỉ lâu hơn một chút
-            target_fps = 30.0
-            wait_time = max(0.002, (1.0 / target_fps) - loop_duration)
-            time.sleep(wait_time)
-
-            total_duration = time.time() - loop_start
-            current_fps = 1.0 / (total_duration + 0.0001)
-            fps_avg = fps_avg * 0.9 + current_fps * 0.1
-
-            # --- LOG CHUẨN ĐOÁN MỖI 10 GIÂY ---
-            if getattr(self, '_last_diag_log', 0) < now - 10.0:
-                self.logger.info(f"⏱️ [CPU DIAGNOSTIC - CAM {self.camera_id}] Toc do keo Frame: {t_read_ms:.1f} ms | Phan tich AI: {t_ai_ms:.1f} ms | Vong lap mat tong: {total_duration*1000:.1f} ms")
-                self._last_diag_log = now
+            time.sleep(0.01)
 
 
 

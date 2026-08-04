@@ -90,6 +90,40 @@ def get_machine_stats():
     return jsonify(_event_repo.get_machine_error_stats(date))
 
 
+import psutil
+import shutil
+
+# Khởi tạo bộ đếm thời gian CPU lần đầu tiên để tránh trả về 0.0 ở request đầu tiên
+try:
+    psutil.cpu_percent(interval=None)
+except Exception:
+    pass
+
 @api_bp.route('/api/health')
 def health():
-    return jsonify({"status": "ok"})
+    try:
+        # Lấy CPU usage của toàn hệ thống (không block luồng Flask)
+        cpu_usage = psutil.cpu_percent(interval=None)
+        
+        # Lấy RAM của ứng dụng hiện tại (Process RSS)
+        process = psutil.Process()
+        ram_used = int(process.memory_info().rss / (1024 * 1024))
+        
+        # Lấy dung lượng đĩa trống của phân vùng cài đặt dự án
+        total, used, free = shutil.disk_usage(os.path.abspath(os.sep))
+        disk_free = round(free / (1024 * 1024 * 1024), 1)
+        
+        return jsonify({
+            "status": "ok",
+            "cpu_usage_percent": cpu_usage,
+            "ram_used_mb": ram_used,
+            "disk_free_gb": disk_free
+        })
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "cpu_usage_percent": 0.0,
+            "ram_used_mb": 0,
+            "disk_free_gb": 0.0,
+            "message": str(e)
+        })

@@ -818,6 +818,12 @@
 
     /** LIVE GRID RENDERER: Cập nhật ảnh và vẽ ROI + BBox cho từng camera trong lưới */
     function performLiveGridUpdate(camId, data) {
+        // Bỏ qua nếu camera cell đang bị ẩn do phân trang (tiết kiệm CPU giải mã và render cho trình duyệt)
+        const cell = document.querySelector(`.live-grid-cell[data-cam-id="${camId}"]`);
+        if (cell && cell.style.display === 'none') {
+            return;
+        }
+
         const feedImg = document.getElementById(`grid-feed-${camId}`);
         const canvas = document.getElementById(`grid-canvas-${camId}`);
         const statusEl = document.getElementById(`grid-live-status-${camId}`);
