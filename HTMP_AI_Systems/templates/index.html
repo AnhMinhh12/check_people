@@ -224,6 +224,17 @@
         // Bật stream ảnh cho tất cả camera (chất lượng thấp)
         socket.emit('view_all_cameras', { enabled: true });
         setupGlobalListeners();
+
+        // Pagination: reset về trang 1 mỗi lần mở, tính lại grid ngay khi view hiển thị
+        try {
+            localStorage.setItem(LG_STORAGE_PAGE, 1);
+            if (typeof _lgCurrentPage !== 'undefined') {
+                _lgCurrentPage = 1;
+            }
+            requestAnimationFrame(() => {
+                if (typeof renderLiveGridPage === 'function') renderLiveGridPage();
+            });
+        } catch (e) { /* ignore nếu init chưa xong */ }
     }
 
     async function updateLiveGridStats() {
@@ -254,12 +265,12 @@
                 const percentage = (m.count / maxCount) * 100;
                 const isZero = m.count === 0;
                 return `
-                    <div class="bg-white p-5 rounded-[1.5rem] border border-slate-100 hover:border-primary/20 hover:shadow-md transition-all group">
-                        <div class="flex flex-col">
-                            <span class="text-[10px] text-slate-800 uppercase tracking-tight">${m.name}</span>
-                            <span class="text-xs ${isZero ? 'text-slate-300' : 'text-primary'}">${m.count}</span>
+                    <div class="bg-white p-2.5 rounded-xl border border-slate-100 hover:border-primary/20 hover:shadow-md transition-all group">
+                        <div class="flex items-center justify-between gap-2 mb-1.5">
+                            <span class="text-[10px] text-slate-800 uppercase tracking-tight truncate flex-1">${m.name}</span>
+                            <span class="text-[11px] font-bold ${isZero ? 'text-slate-300' : 'text-primary'} flex-shrink-0">${m.count}</span>
                         </div>
-                        <div class="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div class="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
                             <div class="h-full bg-gradient-to-r from-primary to-indigo-500 transition-all duration-1000 rounded-full" style="width: ${percentage}%"></div>
                         </div>
                     </div>
@@ -907,6 +918,97 @@
         setupGlobalListeners();
         showTab('dashboard'); // Đồng bộ Sidebar và Content ngay khi tải trang
         window.addEventListener('resize', synchronizeROICanvas);
+        initLiveGridPagination();
     };
+
+    /** ============================================================
+     * LIVE GRID: 4 camera / trang, sidebar cố định
+     * - Thanh trái cố định (rộng theo breakpoint: md 288 / lg 320 / xl 360)
+     * - Grid camera bên phải: 4 camera / trang, bố trí 2 cột x 2 hàng, giữ tỉ lệ 16:9
+     * - Nút ‹ › để chuyển trang
+     * ============================================================ */
+
+    const LG_PER_PAGE = 12;
+    const LG_STORAGE_PAGE = 'lg.page';
+
+    function getLiveGridEls() {
+        return {
+            view: document.getElementById('live-grid-view'),
+            main: document.getElementById('live-grid-main'),
+            container: document.getElementById('live-grid-container'),
+            prevBtn: document.getElementById('lg-prev'),
+            nextBtn: document.getElementById('lg-next'),
+            pageInfo: document.getElementById('live-grid-page-info'),
+        };
+    }
+
+    /** ============================================================
+     * PAGINATION
+     * ============================================================ */
+    let _lgCells = [];
+    let _lgCurrentPage = 1;
+
+    function renderLiveGridPage() {
+        const els = getLiveGridEls();
+        if (!els.container) return;
+
+        const total = _lgCells.length;
+        const totalPages = Math.max(1, Math.ceil(total / LG_PER_PAGE));
+        if (_lgCurrentPage > totalPages) _lgCurrentPage = totalPages;
+        if (_lgCurrentPage < 1) _lgCurrentPage = 1;
+
+        const start = (_lgCurrentPage - 1) * LG_PER_PAGE;
+        const end = start + LG_PER_PAGE;
+
+        _lgCells.forEach((cell, idx) => {
+            if (idx >= start && idx < end) {
+                cell.style.display = '';
+            } else {
+                cell.style.display = 'none';
+            }
+        });
+
+        if (els.pageInfo) {
+            const showFrom = total === 0 ? 0 : start + 1;
+            const showTo = Math.min(end, total);
+            els.pageInfo.textContent = total === 0
+                ? 'Không có camera'
+                : `Trang ${_lgCurrentPage}/${totalPages} • ${showFrom}–${showTo} / ${total}`;
+        }
+
+        if (els.prevBtn) els.prevBtn.disabled = _lgCurrentPage <= 1;
+        if (els.nextBtn) els.nextBtn.disabled = _lgCurrentPage >= totalPages;
+
+        localStorage.setItem(LG_STORAGE_PAGE, _lgCurrentPage);
+    }
+
+    function initLiveGridPagination() {
+        const els = getLiveGridEls();
+        if (!els.container) return;
+
+        _lgCells = Array.from(els.container.querySelectorAll('.live-grid-cell'));
+        _lgCurrentPage = parseInt(localStorage.getItem(LG_STORAGE_PAGE) || '1', 10);
+
+        if (els.prevBtn) {
+            els.prevBtn.addEventListener('click', () => {
+                if (_lgCurrentPage > 1) {
+                    _lgCurrentPage--;
+                    renderLiveGridPage();
+                }
+            });
+        }
+        if (els.nextBtn) {
+            els.nextBtn.addEventListener('click', () => {
+                const totalPages = Math.ceil(_lgCells.length / LG_PER_PAGE);
+                if (_lgCurrentPage < totalPages) {
+                    _lgCurrentPage++;
+                    renderLiveGridPage();
+                }
+            });
+        }
+
+        // Render lần đầu
+        renderLiveGridPage();
+    }
 </script>
 {% endblock %}
