@@ -1,0 +1,52 @@
+services:
+  warden-app:
+    build: .
+    image: warden-ai:local
+    container_name: sentinel-warden-v5-enterprise
+    runtime: nvidia
+    restart: always
+    ports:
+      - "5000:5000"
+    
+    # Cấp quyền tối đa cho GPU
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+    volumes:
+      - ./.env:/app/.env
+      - ./data:/app/data
+      - ../data:/data
+      - ../data/violations:/app/violations
+      - ./models:/app/models
+      - ./logs:/app/logs
+      - ./app:/app/app
+      - ./core:/app/core
+      - ./db:/app/db
+      - ./services:/app/services
+      - ./pipelines:/app/pipelines
+      - ./events:/app/events
+      - ./integrations:/app/integrations
+      - ./templates:/app/templates
+    
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - FLASK_DEBUG=True
+      - OPENCV_FFMPEG_CAPTURE_OPTIONS=rtsp_transport;tcp
+      - PYTHONUNBUFFERED=1
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    
+    shm_size: '2gb'
+    privileged: true
+
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:5000/api/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s

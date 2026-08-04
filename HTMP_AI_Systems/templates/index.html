@@ -1,0 +1,912 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}Dashboard | Warden AI Enterprise{% endblock %}
+
+{% block content %}
+<!-- MAIN DASHBOARD CONTENT -->
+<div id="tab-dashboard" class="tab-content active space-y-12">
+    {% include 'components/focused_view.html' %}
+    {% include 'components/dashboard_grid.html' %}
+</div>
+
+<!-- LIVE GRID (Outside tab-dashboard to avoid spacing) -->
+{% include 'components/live_grid.html' %}
+
+<!-- ANALYSIS CONTENT -->
+{% include 'components/analysis_content.html' %}
+
+<!-- HISTORY CONTENT -->
+{% include 'components/history_content.html' %}
+{% endblock %}
+
+{% block scripts %}
+<script id="cameras-data" type="application/json">{{ cameras|tojson|safe }}</script>
+
+<script>
+    const ALL_CAMERAS = JSON.parse(document.getElementById('cameras-data').textContent);
+    const socket = io();
+
+    // Tự động cập nhật Lịch sử & Phân tích khi có vi phạm mới mà không cần F5
+    socket.on('new_violation', (data) => {
+        if (currentTab === 'history') loadHistory();
+        if (currentTab === 'analysis') updateAnalysis();
+    });
+    let currentTab = 'dashboard';
+    let focusedCamId = null;
+    let isLiveGridActive = false;
+    let selectedROIPoints = [];
+    let allPolygons = []; // Danh sách các vùng đã vẽ xong
+    let analyticsChartInstance = null;
+
+    /** CUSTOM DROPDOWN LOGIC */
+    function toggleDropdown(id) {
+        const el = document.getElementById(id);
+        const isHidden = el.classList.contains('hidden');
+
+        // Close all other dropdowns first
+        document.querySelectorAll('.custom-dropdown > div').forEach(d => d.classList.add('hidden'));
+
+        if (isHidden) el.classList.remove('hidden');
+    }
+
+    function selectDropdownOption(type, value, label) {
+        // Update the hidden input value
+        const input = document.getElementById(`${type}-zone-select`);
+        input.value = value;
+
+        // Update the UI label
+        const labelEl = document.getElementById(`${type}-dropdown-label`);
+        labelEl.innerText = label;
+
+        // Close dropdown
+        document.getElementById(`${type}-dropdown`).classList.add('hidden');
+
+        // Trigger action
+        if (type === 'analysis') updateAnalysis();
+        if (type === 'history') loadHistory();
+    }
+
+    // Close dropdowns when clicking outside
+    window.addEventListener('click', function (e) {
+        if (!e.target.closest('.custom-dropdown')) {
+            document.querySelectorAll('.custom-dropdown > div').forEach(d => d.classList.add('hidden'));
+        }
+    });
+
+    /** SIDEBAR MANAGEMENT */
+    function toggleSidebar() {
+        const body = document.body;
+        const icon = document.getElementById('sidebar-toggle-icon');
+        const isCollapsed = body.classList.toggle('sidebar-collapsed');
+
+        if (icon) {
+            icon.style.transform = isCollapsed ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+
+        localStorage.setItem('sidebar-collapsed', isCollapsed);
+    }
+
+    function initSidebar() {
+        const isCollapsed = localStorage.getItem('sidebar-collapsed') === 'true';
+        if (isCollapsed) {
+            document.body.classList.add('sidebar-collapsed');
+            const icon = document.getElementById('sidebar-toggle-icon');
+            if (icon) icon.style.transform = 'rotate(180deg)';
+        }
+    }
+
+    /** TAB MANAGEMENT */
+    function showTab(id) {
+        currentTab = id;
+        
+        const tabs = document.querySelectorAll('.tab-content');
+        tabs.forEach(t => {
+            t.classList.remove('active');
+            if (t.id === 'tab-' + id) {
+                t.classList.add('active');
+            }
+        });
+        
+        const navBtns = document.querySelectorAll('.nav-btn');
+        navBtns.forEach(btn => {
+            btn.classList.remove('bg-primary/10', 'text-primary', 'font-semibold', 'shadow-sm');
+            btn.classList.add('text-slate-600');
+            const s = btn.querySelector('span');
+            if (s) s.classList.remove('font-semibold');
+            
+            if (btn.id === 'nav-' + id) {
+                btn.classList.add('bg-primary/10', 'text-primary', 'font-semibold', 'shadow-sm');
+                btn.classList.remove('text-slate-600');
+                if (s) s.classList.add('font-semibold');
+            }
+        });
+
+        const titleText = document.getElementById('tab-title-text');
+        if (titleText) {
+            const titleMap = { 'dashboard': 'Bảng điều khiển', 'analysis': 'Báo cáo Phân tích', 'history': 'Bằng chứng & Nhật ký' };
+            titleText.innerText = titleMap[id] || id;
+        }
+
+        if (id === 'dashboard' && typeof closeFocusView === 'function') {
+            closeFocusView();
+        }
+        if (id === 'history') {
+            loadHistory();
+        }
+        if (id === 'analysis') {
+            updateAnalysis();
+        }
+    }
+
+    /** CAMERA FOCUS LOGIC */
+    function focusCamera(id, name) {
+        focusedCamId = Number(id);
+        const gridView = document.getElementById('grid-view');
+        const focusedView = document.getElementById('focused-view');
+        
+        if (gridView) gridView.classList.add('hidden');
+        if (focusedView) focusedView.classList.remove('hidden');
+
+        // Cập nhật tên Cam (Dùng optional chaining để không crash nếu thiếu thẻ)
+        const camNameEl = document.getElementById('focused-cam-name');
+        if (camNameEl) camNameEl.innerText = `NGUỒN TRỰC TIẾP: ${name.toUpperCase()}`;
+        
+        const camIdEl = document.getElementById('active-cam-id');
+        if (camIdEl) camIdEl.innerText = `CAM-${String(id).padStart(2, '0')}`;
+
+        // Gửi thông báo cho Server lọc băng thông ảnh (CHỈ stream ảnh của cam này)
+        socket.emit('focus_camera', { camera_id: id });
+    }
+
+    function closeFocusView() {
+        focusedCamId = null;
+        const focusedView = document.getElementById('focused-view');
+        if (focusedView) focusedView.classList.add('hidden');
+
+        // Quay về đúng chế độ trước đó (Grid View hoặc Live Grid)
+        if (isLiveGridActive) {
+            const liveGrid = document.getElementById('live-grid-view');
+            if (liveGrid) liveGrid.classList.remove('hidden');
+            socket.emit('view_all_cameras', { enabled: true });
+        } else {
+            const gridView = document.getElementById('grid-view');
+            if (gridView) gridView.classList.remove('hidden');
+        }
+
+        const focusedName = document.getElementById('focused-cam-name');
+        if (focusedName) focusedName.innerText = "GLOBAL DASHBOARD LIVE FEED";
+        
+        const roiPanel = document.getElementById('roi-config-panel');
+        if (roiPanel) roiPanel.classList.add('hidden');
+        
+        const videoFeed = document.getElementById('video-feed');
+        if (videoFeed) videoFeed.src = "";
+        
+        setupGlobalListeners();
+    }
+
+    function setupGlobalListeners() {
+        if (!ALL_CAMERAS) return;
+        
+        ALL_CAMERAS.forEach(cam => {
+            socket.off(`stats_update_${cam.id}`).on(`stats_update_${cam.id}`, (data) => {
+                performGridCardUpdate(cam.id, data);
+
+                // Focused View
+                if (focusedCamId === cam.id) performDashboardUpdate(data);
+
+                // Live Grid: cập nhật ảnh + vẽ ROI/BBox
+                if (isLiveGridActive) performLiveGridUpdate(cam.id, data);
+            });
+        });
+    }
+
+    /** LIVE GRID: Xem tất cả camera */
+    async function showLiveGrid() {
+        isLiveGridActive = true;
+        document.getElementById('grid-view').classList.add('hidden');
+        document.getElementById('focused-view').classList.add('hidden');
+        document.getElementById('live-grid-view').classList.remove('hidden');
+
+        // Ẩn sidebar và header
+        document.getElementById('main-sidebar').classList.add('hidden');
+        document.getElementById('main-header').classList.add('hidden');
+        document.querySelector('main').classList.remove('ml-20', 'lg:ml-64');
+        document.querySelector('main').classList.add('ml-0');
+
+        // Reset date picker to today
+        const picker = document.getElementById('live-grid-date-picker');
+        if (picker) {
+            picker.value = new Date().toISOString().split('T')[0];
+            updateLiveGridStats();
+        }
+
+        // Bật stream ảnh cho tất cả camera (chất lượng thấp)
+        socket.emit('view_all_cameras', { enabled: true });
+        setupGlobalListeners();
+    }
+
+    async function updateLiveGridStats() {
+        const picker = document.getElementById('live-grid-date-picker');
+        if (!picker) return;
+        
+        const date = picker.value;
+        const listContainer = document.getElementById('machine-ranking-container');
+
+        if (!listContainer) return;
+
+        try {
+            const res = await fetch(`/api/machine_stats?date=${date}`);
+            const data = await res.json();
+
+            // Cập nhật tổng lỗi (nếu phần tử này tồn tại - dù đã ẩn nhưng tốt cho logic mở rộng)
+            const totalEl = document.getElementById('live-grid-total-errors');
+            if (totalEl) totalEl.innerText = data.total_today;
+
+            if (data.machines.length === 0) {
+                listContainer.innerHTML = '<p class="text-slate-400 text-[9px] text-center py-12 uppercase font-semibold tracking-widest italic">Không có dữ liệu vi phạm</p>';
+                return;
+            }
+
+            const maxCount = Math.max(...data.machines.map(m => m.count)) || 1;
+
+            listContainer.innerHTML = data.machines.map(m => {
+                const percentage = (m.count / maxCount) * 100;
+                const isZero = m.count === 0;
+                return `
+                    <div class="bg-white p-5 rounded-[1.5rem] border border-slate-100 hover:border-primary/20 hover:shadow-md transition-all group">
+                        <div class="flex flex-col">
+                            <span class="text-[10px] text-slate-800 uppercase tracking-tight">${m.name}</span>
+                            <span class="text-xs ${isZero ? 'text-slate-300' : 'text-primary'}">${m.count}</span>
+                        </div>
+                        <div class="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                            <div class="h-full bg-gradient-to-r from-primary to-indigo-500 transition-all duration-1000 rounded-full" style="width: ${percentage}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        } catch (e) {
+            console.error("Error updating live grid stats:", e);
+        }
+    }
+
+    function closeLiveGrid() {
+        isLiveGridActive = false;
+        document.getElementById('live-grid-view').classList.add('hidden');
+        document.getElementById('grid-view').classList.remove('hidden');
+
+        // Hiện lại sidebar và header
+        document.getElementById('main-sidebar').classList.remove('hidden');
+        document.getElementById('main-header').classList.remove('hidden');
+        document.querySelector('main').classList.remove('ml-0');
+        document.querySelector('main').classList.add('ml-20', 'lg:ml-64');
+
+        // Tắt stream ảnh tất cả camera
+        socket.emit('view_all_cameras', { enabled: false });
+        setupGlobalListeners();
+    }
+
+    function focusCameraFromGrid(id, name) {
+        // Tắt grid mode trước khi focus
+        document.getElementById('live-grid-view').classList.add('hidden');
+        socket.emit('view_all_cameras', { enabled: false });
+        focusCamera(id, name);
+    }
+
+    /** DATA UPDATES */
+    function performGridCardUpdate(id, data) {
+        const countEl = document.getElementById(`grid-count-${id}`);
+        const labelEl = document.getElementById(`grid-label-${id}`);
+        const statusEl = document.getElementById(`grid-status-${id}`);
+
+        if (countEl) countEl.innerText = data.workers_in_roi;
+        if (labelEl) {
+            labelEl.innerText = data.status;
+            // Sử dụng status_code đã đồng bộ (0 = SAFE)
+            const isSafe = data.status_code === 0;
+            labelEl.className = `px-4 py-2 rounded-2xl text-[9px] font-semibold uppercase tracking-widest border shadow-sm transition-all ${isSafe ? 'bg-success/10 text-success border-success/10' : 'bg-danger/10 text-danger border-danger/10 animate-pulse'}`;
+        }
+        if (statusEl) {
+            statusEl.innerText = data.camera_connected ? 'ĐANG KẾT NỐI' : 'MẤT TÍN HIỆU';
+            statusEl.className = `px-4 py-1.5 text-[9px] font-semibold rounded-full border transition-all shadow-sm ${data.camera_connected ? 'bg-success text-white border-success' : 'bg-slate-100 text-slate-400 border-slate-200'
+                }`;
+        }
+    }
+
+    function performDashboardUpdate(data) {
+        const feedImg = document.getElementById('video-feed');
+        const roiBgImg = document.getElementById('roi-bg');
+        
+        if (data.image) {
+            const b64Data = 'data:image/jpeg;base64,' + data.image;
+            if (feedImg) {
+                feedImg.src = b64Data;
+                feedImg.classList.remove('opacity-20'); // Hiện rõ khi có ảnh
+            }
+            if (roiBgImg) roiBgImg.src = b64Data;
+        } else {
+            // Nếu không có ảnh, làm mờ đi để thông báo đang chờ
+            if (feedImg) feedImg.classList.add('opacity-20');
+        }
+
+        // Cập nhật thông số chân trang (Sử dụng Chip cho đẹp)
+        const countContainer = document.getElementById('worker-count-container');
+        if (countContainer && data.zones_stats) {
+            countContainer.innerHTML = data.zones_stats.map(z => `
+                <span class="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-xl shadow-sm transition-all hover:border-primary/20 hover:bg-primary/5">
+                    <span class="text-[8px] font-semibold text-slate-400 uppercase tracking-tighter">${z.name}:</span>
+                    <span class="text-[10px] font-semibold ${z.worker_count > 0 ? 'text-primary' : 'text-slate-400'}">${z.worker_count}</span>
+                </span>
+            `).join('');
+        }
+        // 1. TÍNH FPS HIỂN THỊ THỰC TẾ (Client-side FPS)
+        if (!window._lastFrameTimes) window._lastFrameTimes = {};
+        const now = performance.now();
+        if (window._lastFrameTimes[data.camera_id]) {
+            const delta = (now - window._lastFrameTimes[data.camera_id]) / 1000;
+            const currentFps = 1 / delta;
+
+            // Dùng EMA để số FPS hiển thị mượt mà
+            if (!window._fpsEma) window._fpsEma = {};
+            window._fpsEma[data.camera_id] = (window._fpsEma[data.camera_id] || currentFps) * 0.9 + currentFps * 0.1;
+
+            if (document.getElementById('fps-display')) {
+                document.getElementById('fps-display').innerText = window._fpsEma[data.camera_id].toFixed(1);
+            }
+        }
+        window._lastFrameTimes[data.camera_id] = now;
+
+        // Dashboard Monitoring Zones
+        const zoneContainer = document.getElementById('zones-monitoring-container');
+        if (zoneContainer && data.zones_stats) {
+            zoneContainer.innerHTML = data.zones_stats.map(z => {
+                const isSafe = z.status_code === 0;
+                const colorClass = isSafe ? 'bg-secondary' : 'bg-danger';
+                const progress = Math.min((z.missing_time / (data.alarm_threshold || 15.0)) * 100, 100);
+
+                return `
+                    <div class="space-y-3 bg-slate-50/50 p-6 rounded-3xl border border-slate-100 transition-all">
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center gap-3">
+                                <span class="h-3 w-3 rounded-full ${colorClass} shadow-[0_0_10px_rgba(239,68,68,0.4)] animate-pulse"></span>
+                                <span class="text-[10px] font-semibold text-slate-700 uppercase tracking-widest">${z.name}</span>
+                            </div>
+                            <div class="flex flex-col items-end">
+                                <span class="text-[9px] font-semibold ${isSafe ? 'text-secondary' : 'text-danger'} uppercase tracking-widest">${z.status} (${z.missing_time}s)</span>
+                                <span class="text-[8px] font-medium text-slate-400 uppercase mt-1">Phát hiện: ${z.worker_count} NGƯỜI</span>
+                            </div>
+                        </div>
+                        <div class="h-2 w-full bg-white rounded-full overflow-hidden shadow-inner border border-slate-100">
+                            <div class="h-full ${colorClass} transition-all duration-300" style="width: ${progress}%"></div>
+                        </div>
+                        <div class="flex justify-between px-1">
+                            <span class="text-[8px] font-semibold text-slate-300 uppercase tracking-tighter">0S</span>
+                            <span class="text-[8px] font-semibold text-slate-400 uppercase tracking-tighter">${data.alarm_threshold || 15.0}S</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Overlay Drawing
+        const mainCanvas = document.getElementById('dashboard-canvas');
+        if (mainCanvas && feedImg && feedImg.clientWidth > 0) {
+            mainCanvas.width = feedImg.clientWidth;
+            mainCanvas.height = feedImg.clientHeight;
+            const mCtx = mainCanvas.getContext('2d');
+            mCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+            const sx = mainCanvas.width / 640; const sy = mainCanvas.height / 360;
+
+            if (data.all_rois && data.all_rois.length > 0) {
+                data.all_rois.forEach((roi, idx) => {
+                    // Ưu tiên sử dụng status_code từ zones_stats để chính xác tuyệt đối
+                    const sCode = (data.zones_stats && data.zones_stats[idx]) ? data.zones_stats[idx].status_code : data.status_code;
+                    const isSafe = sCode === 0;
+
+                    mCtx.strokeStyle = isSafe ? '#10b981' : '#ef4444';
+                    mCtx.lineWidth = 4;
+                    mCtx.beginPath();
+                    roi.forEach((point, pIdx) => {
+                        const px = point[0] * sx; const py = point[1] * sy;
+                        pIdx === 0 ? mCtx.moveTo(px, py) : mCtx.lineTo(px, py);
+                    });
+                    mCtx.closePath();
+                    mCtx.stroke();
+
+                    mCtx.fillStyle = isSafe ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.1)';
+                    mCtx.fill();
+                });
+            }
+
+            if (data.latest_detections) {
+                data.latest_detections.forEach(det => {
+                    const box = det.box;
+                    const bx1 = box[0] * sx; const by1 = box[1] * sy;
+                    const bx2 = box[2] * sx; const by2 = box[3] * sy;
+                    mCtx.strokeStyle = det.is_safe ? '#10b981' : '#f59e0b';
+                    mCtx.lineWidth = 3;
+                    mCtx.beginPath();
+                    mCtx.roundRect(bx1, by1, bx2 - bx1, by2 - by1, 8);
+                    mCtx.stroke();
+                    // Sublabel
+                    mCtx.fillStyle = det.is_safe ? '#10b981' : '#f59e0b';
+                    mCtx.font = 'bold 10px Inter';
+                    mCtx.fillText(det.is_safe ? 'SECURE' : 'UNAUTHORIZED', bx1, by1 - 5);
+                });
+            }
+        }
+    }
+
+    /** HISTORY HANDLER */
+    async function loadHistory() {
+        const zoneId = document.getElementById('history-zone-select').value;
+        const historyBody = document.getElementById('history-table');
+        const emptyState = document.getElementById('history-empty');
+        try {
+            const response = await fetch(`/api/history?zone_id=${zoneId}`);
+            const violations = await response.json();
+
+            if (violations.length === 0) {
+                historyBody.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            historyBody.innerHTML = violations.map(v => `
+                    <tr class="hover:bg-slate-50 transition-colors group">
+                        <td class="px-12 py-8">
+                            <div class="flex items-center gap-3">
+                                <div class="h-10 w-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-300 group-hover:bg-primary/10 group-hover:text-primary transition-all">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                </div>
+                                <span class="font-semibold text-slate-800 uppercase tracking-tighter">${v.camera_name || 'N/A'}</span>
+                            </div>
+                        </td>
+                        <td class="px-12 py-8 font-medium text-slate-400">#CAM-${String(v.camera_id).padStart(2, '0')}</td>
+                        <td class="px-12 py-8 text-slate-500 font-mono text-[11px]">${v.time}</td>
+                        <td class="px-12 py-8">
+                            <span class="px-4 py-2 bg-danger/5 text-danger rounded-2xl text-[10px] font-semibold border border-danger/10 shadow-sm whitespace-nowrap inline-block">${v.duration}s Vi phạm</span>
+                        </td>
+                        <td class="px-12 py-8 text-center">
+                            <img src="/violations/${v.image}" class="h-16 w-16 object-cover mx-auto rounded-2xl hover:scale-150 transition-all cursor-pointer shadow-xl border-4 border-white" onclick="openEvidenceModal('/violations/${v.image}')"/>
+                        </td>
+                        <td class="px-12 py-8 font-semibold text-primary uppercase text-[11px] italic whitespace-nowrap">
+                            ${v.machine_name || 'Dữ liệu cũ'}
+                        </td>
+                        <td class="px-12 py-8 text-right">
+                            <button onclick="openEvidenceModal('/violations/${v.image}')" class="h-10 w-10 flex items-center justify-center bg-slate-50 rounded-xl text-slate-300 hover:bg-primary hover:text-white transition-all shadow-sm">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+        } catch (err) { console.error("History fetch error:", err); }
+    }
+
+    function openEvidenceModal(imageUrl) {
+        const modal = document.getElementById('image-modal');
+        const backdrop = document.getElementById('image-modal-backdrop');
+        const content = document.getElementById('image-modal-content');
+        const mImg = document.getElementById('modal-img');
+        const dBtn = document.getElementById('download-img-link');
+        
+        mImg.src = imageUrl;
+        if (dBtn) dBtn.href = imageUrl;
+        
+        modal.style.visibility = 'visible';
+        modal.classList.remove('pointer-events-none');
+        
+        setTimeout(() => {
+            if (backdrop) backdrop.style.opacity = '1';
+            if (content) {
+                content.style.opacity = '1';
+                content.style.transform = 'scale(1) translateY(0)';
+            }
+        }, 10);
+    }
+
+    /** ANALYTICS HANDLER */
+    async function updateAnalysis() {
+        const zoneId = document.getElementById('analysis-zone-select').value;
+        const targetDate = document.getElementById('analysis-date-picker').value;
+        try {
+            const res = await fetch(`/api/analytics?zone_id=${zoneId}&date=${targetDate}`);
+            const data = await res.json();
+
+            // 1. Cập nhật các thẻ thông tin (Cards)
+            const totalMin = data.total_duration_minutes;
+            let displayTime = "";
+            if (totalMin >= 60) {
+                const h = Math.floor(totalMin / 60);
+                const m = Math.round(totalMin % 60);
+                displayTime = `${h}H ${m}PH`;
+            } else {
+                displayTime = `${Math.round(totalMin)}PH`;
+            }
+
+            document.getElementById('analytics-duration').innerText = displayTime;
+            document.getElementById('analytics-count').innerText = data.total_violations;
+            document.getElementById('analytics-uptime').innerText = data.safety_rate + '%';
+            document.getElementById('analytics-avg-duration').innerText = data.avg_duration_seconds + 's';
+            document.getElementById('analytics-peak-hour').innerText = data.peak_hour;
+
+            // 2. Vẽ biểu đồ theo ngày
+            renderChart(data.daily_stats);
+        } catch (e) { console.error("Analytics Error:", e); }
+    }
+
+    function renderChart(dailyData) {
+        const ctx = document.getElementById('analysis-chart').getContext('2d');
+        if (analyticsChartInstance) analyticsChartInstance.destroy();
+
+        // Tạo Gradient màu tím -> xanh cực đẹp (Premium look)
+        const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+        gradient.addColorStop(0, 'rgba(79, 70, 229, 0.5)'); // Indigo
+        gradient.addColorStop(1, 'rgba(79, 70, 229, 0)');
+
+        const labels = dailyData.length > 0 ? dailyData.map(d => d.date) : ['N/A'];
+        const values = dailyData.length > 0 ? dailyData.map(d => d.count) : [0];
+
+        analyticsChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Số vụ vi phạm',
+                    data: values,
+                    borderColor: '#4f46e5',
+                    backgroundColor: gradient,
+                    fill: true,
+                    tension: 0.4, // Đường cong mượt mà
+                    borderWidth: 4,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#ffffff',
+                    pointBorderColor: '#4f46e5',
+                    pointBorderWidth: 2,
+                    pointHoverRadius: 8,
+                    pointHoverBorderWidth: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false } // Ẩn legend cho gọn
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { display: false, drawBorder: false }, // Ẩn lưới Y
+                        ticks: { font: { size: 10, weight: 'semibold' }, color: '#94a3b8' }
+                    },
+                    x: {
+                        grid: { display: false, drawBorder: false }, // Ẩn lưới X
+                        ticks: { font: { size: 10, weight: 'semibold' }, color: '#94a3b8' }
+                    }
+                }
+            }
+        });
+    }
+
+    /** ROI CONFIGURATION */
+    const roiCanvas = document.getElementById('roi-canvas');
+    const roiCtx = roiCanvas ? roiCanvas.getContext('2d') : null;
+
+    async function toggleROIConfig() {
+        const panel = document.getElementById('roi-config-panel');
+        const isOpening = panel.classList.contains('hidden');
+        panel.classList.toggle('hidden');
+        
+        if (isOpening) {
+            // Khi mở bảng: Tải dữ liệu vùng từ Database về để hiển thị lên Canvas vẽ
+            try {
+                const res = await fetch(`/api/zones?camera_id=${focusedCamId}`);
+                const zones = await res.json();
+                
+                // Lọc lấy các vùng của camera hiện tại (nếu API trả về all)
+                const camZones = zones.filter(z => z.camera_id === focusedCamId);
+                
+                if (camZones.length > 0) {
+                    const bgImg = document.getElementById('roi-bg');
+                    const sx = bgImg.clientWidth / 640;
+                    const sy = bgImg.clientHeight / 360;
+                    
+                    allPolygons = camZones.map(z => ({
+                        name: z.name,
+                        points: z.roi.map(p => [p[0] * sx, p[1] * sy])
+                    }));
+                }
+            } catch (e) {
+                console.error("Lỗi tải vùng ROI:", e);
+            }
+            
+            setTimeout(synchronizeROICanvas, 100);
+        }
+    }
+
+    function synchronizeROICanvas() {
+        const bgImg = document.getElementById('roi-bg');
+        if (roiCanvas && bgImg) {
+            roiCanvas.width = bgImg.clientWidth;
+            roiCanvas.height = bgImg.clientHeight;
+            renderROIPolygon();
+        }
+    }
+
+    if (roiCanvas) {
+        roiCanvas.onmousedown = (e) => {
+            const rect = roiCanvas.getBoundingClientRect();
+            if (e.button === 0) selectedROIPoints.push([e.clientX - rect.left, e.clientY - rect.top]);
+            else if (e.button === 2) selectedROIPoints.pop();
+            renderROIPolygon();
+        };
+        roiCanvas.oncontextmenu = () => false;
+    }
+
+    function addPolygon() {
+        const nameInput = document.getElementById('roi-zone-name');
+        const zName = nameInput.value.trim() || `Vung ${allPolygons.length + 1}`;
+
+        if (selectedROIPoints.length >= 3) {
+            allPolygons.push({
+                name: zName,
+                points: [...selectedROIPoints]
+            });
+            selectedROIPoints = [];
+            nameInput.value = ""; // Reset input
+            renderROIPolygon();
+        } else {
+            alert("Vui lòng vẽ ít nhất 3 điểm để khép kín một vùng!");
+        }
+    }
+
+    function renderROIPolygon() {
+        if (!roiCtx || !roiCanvas) return;
+        roiCtx.clearRect(0, 0, roiCanvas.width, roiCanvas.height);
+
+        // 1. Vẽ các vùng đã chốt (màu xanh nhạt cố định kèm nhãn)
+        allPolygons.forEach((zone, idx) => {
+            const poly = zone.points;
+            roiCtx.beginPath();
+            roiCtx.moveTo(poly[0][0], poly[0][1]);
+            poly.forEach(p => roiCtx.lineTo(p[0], p[1]));
+            roiCtx.closePath();
+            roiCtx.fillStyle = 'rgba(16, 185, 129, 0.3)'; // Xanh lá nhạt
+            roiCtx.fill();
+            roiCtx.strokeStyle = '#10b981';
+            roiCtx.lineWidth = 2;
+            roiCtx.stroke();
+
+            // Vẽ nhãn tên máy
+            roiCtx.fillStyle = 'white';
+            roiCtx.font = '600 10px Inter';
+            roiCtx.fillText(zone.name.toUpperCase(), poly[0][0], poly[0][1] - 10);
+        });
+
+        if (selectedROIPoints.length === 0) return;
+
+        // 2. Vẽ vùng đang vẽ dở (màu đậm hơn, có điểm nhấn)
+        roiCtx.fillStyle = '#3b82f6'; roiCtx.strokeStyle = '#3b82f6'; roiCtx.lineWidth = 4;
+        selectedROIPoints.forEach(p => {
+            roiCtx.beginPath(); roiCtx.arc(p[0], p[1], 8, 0, Math.PI * 2); roiCtx.fill();
+            roiCtx.strokeStyle = 'white'; roiCtx.lineWidth = 3; roiCtx.stroke();
+        });
+
+        roiCtx.beginPath(); roiCtx.moveTo(selectedROIPoints[0][0], selectedROIPoints[0][1]);
+        selectedROIPoints.forEach(p => roiCtx.lineTo(p[0], p[1]));
+        if (selectedROIPoints.length > 2) {
+            roiCtx.closePath();
+            roiCtx.fillStyle = 'rgba(59, 130, 246, 0.2)';
+            roiCtx.fill();
+        }
+        roiCtx.strokeStyle = '#2563eb'; roiCtx.setLineDash([5, 5]); roiCtx.stroke();
+        roiCtx.setLineDash([]); // Reset line dash
+    }
+
+    function clearROI() { selectedROIPoints = []; allPolygons = []; renderROIPolygon(); }
+
+    async function resetAllZones() {
+        if (!confirm('Bạn có chắc chắn muốn TẮT GIÁM SÁT (Xóa sạch vùng ROI) cho camera này không?')) return;
+        
+        allPolygons = [];
+        selectedROIPoints = [];
+        renderROIPolygon();
+
+        try {
+            await fetch('/api/config_roi', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    camera_id: focusedCamId, 
+                    zones: [] 
+                })
+            });
+            alert('Đã tắt giám sát cho camera này.');
+            // Nếu bảng cấu hình đang mở thì đóng lại
+            document.getElementById('roi-config-panel').classList.add('hidden');
+        } catch (err) {
+            alert('Lỗi khi thực hiện lệnh.');
+            console.error(err);
+        }
+    }
+    async function saveROI() {
+        if (!roiCanvas) return;
+        const sx = 640 / roiCanvas.width; const sy = 360 / roiCanvas.height;
+
+        // Gộp các vùng
+        const finalZones = [...allPolygons];
+        if (selectedROIPoints.length >= 3) {
+            const nameInput = document.getElementById('roi-zone-name');
+            finalZones.push({
+                name: nameInput.value.trim() || `Vùng ${finalZones.length + 1}`,
+                points: selectedROIPoints
+            });
+        }
+
+        // Cho phép lưu ngay cả khi không có vùng nào (Tương đương với việc tắt giám sát vùng)
+        /*
+        if (finalZones.length === 0) {
+            alert("Vui lòng vẽ ít nhất một vùng trước khi lưu!");
+            return;
+        }
+        */
+
+        const formattedZones = finalZones.map(zone => ({
+            name: zone.name,
+            points: zone.points.map(p => [Math.round(p[0] * sx), Math.round(p[1] * sy)])
+        }));
+
+        await fetch('/api/config_roi', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                camera_id: focusedCamId,
+                zones: formattedZones
+            })
+        });
+        alert('Đã cập nhật cấu hình giám sát đa máy cho CAM-' + focusedCamId);
+        selectedROIPoints = [];
+        toggleROIConfig();
+    }
+
+    /** GLOBAL INIT */
+    function setupGlobalListeners() {
+        ALL_CAMERAS.forEach(cam => {
+            const eventName = `stats_update_${cam.id}`;
+            socket.off(eventName).on(eventName, (data) => {
+                // 1. Cập nhật thẻ Grid (Luôn chạy ngầm)
+                performGridCardUpdate(cam.id, data);
+
+                // 2. Cập nhật Dashboard (Nếu đang xem camera này)
+                if (focusedCamId === cam.id) {
+                    // Log chẩn đoán (Bật F12 để xem)
+                    if (data.image) {
+                        if (!window._stats_log_count) window._stats_log_count = 0;
+                        window._stats_log_count++;
+                        if (window._stats_log_count % 40 === 0) {
+                            console.log(`[SOCKET] Cam ${cam.id} | Image Size: ${data.image.length} | Status: ${data.status}`);
+                        }
+                    } else if (focusedCamId === cam.id) {
+                        console.warn(`[SOCKET] Cam ${cam.id} Focused but NO image data!`);
+                    }
+                    
+                    // Chỉ vẽ Dashboard nếu đang ở tab dashboard
+                    if (currentTab === 'dashboard') {
+                        performDashboardUpdate(data);
+                    }
+                }
+
+                // 3. Cập nhật Live Grid (Nếu đang mở lưới)
+                if (isLiveGridActive) {
+                    performLiveGridUpdate(cam.id, data);
+                }
+            });
+        });
+    }
+
+    /** LIVE GRID RENDERER: Cập nhật ảnh và vẽ ROI + BBox cho từng camera trong lưới */
+    function performLiveGridUpdate(camId, data) {
+        const feedImg = document.getElementById(`grid-feed-${camId}`);
+        const canvas = document.getElementById(`grid-canvas-${camId}`);
+        const statusEl = document.getElementById(`grid-live-status-${camId}`);
+        const indicatorEl = document.getElementById(`grid-live-indicator-${camId}`);
+
+        // 1. Cập nhật ảnh
+        if (data.image && feedImg) {
+            feedImg.src = 'data:image/jpeg;base64,' + data.image;
+            const loadingEl = document.getElementById(`grid-loading-${camId}`);
+            if (loadingEl) loadingEl.classList.add('hidden');
+        }
+
+        // 2. Cập nhật trạng thái text
+        if (statusEl) {
+            const isSafe = data.status_code === 0;
+            statusEl.innerText = data.status || 'ONLINE';
+            statusEl.className = `px-3 py-1 bg-black/40 backdrop-blur-md border border-white/20 rounded-full text-[8px] font-semibold text-white uppercase tracking-widest shadow-xl transition-all ${!isSafe ? 'animate-pulse text-red-400 border-red-500/50' : ''}`;
+        }
+
+        // 3. Cập nhật indicator
+        if (indicatorEl) {
+            const isSafe = data.status_code === 0;
+            indicatorEl.className = `h-1.5 w-1.5 rounded-full transition-all duration-500 ${isSafe ? 'bg-success' : 'bg-danger animate-pulse'}`;
+        }
+
+        // 4. Vẽ ROI + BBox trên Canvas Overlay (Tính toán tỷ lệ object-cover)
+        if (canvas && feedImg && feedImg.clientWidth > 0) {
+            canvas.width = feedImg.clientWidth;
+            canvas.height = feedImg.clientHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Tỷ lệ video gốc là 640x360
+            const videoW = 640;
+            const videoH = 360;
+
+            // Tính toán scale và offset của object-cover
+            const scale = Math.max(canvas.width / videoW, canvas.height / videoH);
+            const offX = (canvas.width - videoW * scale) / 2;
+            const offY = (canvas.height - videoH * scale) / 2;
+
+            // Hàm chuyển đổi tọa độ từ 640x360 sang tọa độ canvas (object-cover)
+            const getCanvasCoords = (x, y) => [x * scale + offX, y * scale + offY];
+
+            // Vẽ ROI Zones
+            if (data.all_rois && data.all_rois.length > 0) {
+                data.all_rois.forEach((roi, idx) => {
+                    const sCode = (data.zones_stats && data.zones_stats[idx]) ? data.zones_stats[idx].status_code : data.status_code;
+                    const isSafe = sCode === 0;
+
+                    ctx.strokeStyle = isSafe ? 'rgba(16, 185, 129, 0.6)' : 'rgba(239, 68, 68, 0.8)';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    
+                    roi.forEach((point, pIdx) => {
+                        const [px, py] = getCanvasCoords(point[0], point[1]);
+                        pIdx === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+                    });
+                    
+                    ctx.closePath();
+                    ctx.stroke();
+                    ctx.fillStyle = isSafe ? 'rgba(16, 185, 129, 0.03)' : 'rgba(239, 68, 68, 0.08)';
+                    ctx.fill();
+
+                    // Nhãn vùng
+                    if (data.zones_stats && data.zones_stats[idx]) {
+                        const [lx, ly] = getCanvasCoords(roi[0][0], roi[0][1]);
+                        ctx.fillStyle = isSafe ? 'rgba(255,255,255,0.7)' : 'rgba(239, 68, 68, 0.9)';
+                        ctx.font = 'bold 8px SystemSans, sans-serif';
+                        ctx.fillText(data.zones_stats[idx].name, lx + 4, ly - 4);
+                    }
+                });
+            }
+
+            // Vẽ Bounding Box người
+            if (data.latest_detections) {
+                data.latest_detections.forEach(det => {
+                    const [bx1, by1] = getCanvasCoords(det.box[0], det.box[1]);
+                    const [bx2, by2] = getCanvasCoords(det.box[2], det.box[3]);
+
+                    ctx.strokeStyle = det.is_safe ? 'rgba(16, 185, 129, 0.8)' : 'rgba(245, 158, 11, 0.9)';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.roundRect(bx1, by1, bx2 - bx1, by2 - by1, 4);
+                    ctx.stroke();
+                });
+            }
+        }
+    }
+
+    window.onload = () => {
+        initSidebar();
+        const datePicker = document.getElementById('analysis-date-picker');
+        if (datePicker) {
+            const today = new Date().toISOString().split('T')[0];
+            datePicker.value = today;
+        }
+        setupGlobalListeners();
+        showTab('dashboard'); // Đồng bộ Sidebar và Content ngay khi tải trang
+        window.addEventListener('resize', synchronizeROICanvas);
+    };
+</script>
+{% endblock %}

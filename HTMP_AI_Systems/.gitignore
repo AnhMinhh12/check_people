@@ -1,0 +1,124 @@
+# ============================================================
+# HTMP_AI_Systems — .gitignore
+# Đã hợp nhất từ HEAD và personal/main, bổ sung theo cấu trúc thực tế
+# ============================================================
+
+# =========================
+# ENV & SECRET (QUAN TRỌNG)
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# PYTHON
+# =========================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.py[cod]
+*$py.class
+
+# =========================
+# VENV (KHÔNG BAO GIỜ COMMIT)
+# =========================
+venv/
+.venv/
+env/
+ENV/
+bin/
+lib/
+include/
+share/
+Lib/
+Scripts/
+pyvenv.cfg
+
+# =========================
+# IDE / EDITOR
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# =========================
+# BUILD / DIST
+# =========================
+dist/
+build/
+*.egg-info/
+*.egg
+*.whl
+htmlcov/
+.coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# =========================
+# AI MODEL (nặng, không commit)
+# =========================
+models/
+*.pt
+*.pth
+*.onnx
+*.h5
+*.hdf5
+*.tflite
+*.weights
+
+# =========================
+# DATA — runtime, không commit
+# =========================
+data/sentinel.db
+data/*.db
+data/*.sqlite3
+data/violations/
+data/**/*.jpg
+data/**/*.jpeg
+data/**/*.png
+data/**/*.mp4
+data/**/*.avi
+
+# =========================
+# LOGS
+# =========================
+logs/
+*.log
+output_log.txt
+
+# =========================
+# BACKUPS (UI snapshots + SQL dumps)
+# =========================
+backups/
+backup_*.sql
+*.bak
+
+# =========================
+# SCRATCH / TEST RIÊNG
+# =========================
+scratch/
+
+# =========================
+# LOCAL STATE
+# =========================
+ui_manifest.local.json
+
+# =========================
+# DOCKER / CI-CD TEMP
+# =========================
+Dockerfile.save
+*.zip
+*.tar
+*.tar.gz
+*.env.local

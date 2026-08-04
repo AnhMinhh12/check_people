@@ -1,0 +1,54 @@
+:root {
+    /* Brand Colors */
+    --primary: #2d5cf7;
+    --primary-hover: #1e40af;
+    --secondary: #6366f1;
+    --accent: #f59e0b;
+    
+    /* Semantic Colors */
+    --danger: #ef4444;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --info: #3b82f6;
+    
+    /* Neutral Colors */
+    --bg: #f8fafc;
+    --card-bg: #ffffff;
+    --sidebar-bg: #ffffff;
+    --header-bg: #ffffff;
+    --text-main: #1e293b;
+    --text-muted: #64748b;
+    --border: #e2e8f0;
+    
+    /* Typography */
+    --font-main: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+    
+    /* Effects */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+    --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    
+    /* Spacing & Radius */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 20px;
+    --radius-xl: 28px;
+    --radius-full: 9999px;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: var(--bg);
+    background-image: radial-gradient(at 0% 0%, rgba(45, 92, 247, 0.03) 0, transparent 50%), 
+                      radial-gradient(at 50% 0%, rgba(99, 102, 241, 0.03) 0, transparent 50%);
+    color: var(--text-main);
+    font-family: 'Inter', 'Outfit', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    min-height: 100vh;
+}

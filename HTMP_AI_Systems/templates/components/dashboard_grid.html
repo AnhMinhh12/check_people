@@ -1,0 +1,74 @@
+<!-- DASHBOARD GRID VIEW -->
+<div id="grid-view" class="space-y-10 animate-fadeIn">
+    <div class="flex flex-col lg:flex-row justify-between gap-10 border-b border-slate-100 pb-12">
+        <div class="space-y-3">
+            <h1 class="text-3xl font-semibold text-slate-800 font-headline uppercase leading-none tracking-tight">GIÁM SÁT <span
+                    class="text-primary tracking-tighter">AI REAL-TIME</span></h1>
+            <p class="text-[10px] text-slate-400 font-medium uppercase tracking-[0.2em] opacity-70">PHIÊN BẢN DOANH NGHIỆP V5.0</p>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-6 w-full lg:w-auto items-end">
+            <div class="relative w-full lg:w-96">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+
+                <input type="text" placeholder="Tìm kiếm thiết bị hoặc khu vực..."
+                    class="w-full bg-white border border-slate-100 rounded-2xl text-xs pl-12 pr-6 py-4 focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all shadow-sm">
+            </div>
+            <button class="h-12 w-12 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-center hover:bg-slate-50 transition-all text-slate-400 hover:text-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="21" y1="4" x2="14" y2="4"/><line x1="10" y1="4" x2="3" y2="4"/><line x1="21" y1="12" x2="12" y2="12"/><line x1="8" y1="12" x2="3" y2="12"/><line x1="21" y1="20" x2="16" y2="20"/><line x1="12" y1="20" x2="3" y2="20"/><line x1="14" y1="2" x2="14" y2="6"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="16" y1="18" x2="16" y2="22"/></svg>
+
+            </button>
+            <button onclick="showLiveGrid()"
+                class="h-12 px-6 bg-primary text-white rounded-2xl shadow-lg shadow-primary/20 flex items-center justify-center gap-2.5 hover:brightness-110 transition-all active:scale-95 group">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform">
+                    <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+                </svg>
+                <span class="text-[10px] font-semibold uppercase tracking-widest hidden sm:inline">Xem tất cả</span>
+            </button>
+        </div>
+    </div>
+    
+    <div id="camera-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+        {% for cam in cameras %}
+        <div data-id="{{ cam.id }}" data-name="{{ cam.name }}"
+            onclick="focusCamera(this.dataset.id, this.dataset.name)"
+            class="camera-card group relative bg-white p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/40 flex flex-col justify-between h-[340px] overflow-hidden cursor-pointer border border-slate-50 hover:border-primary/20 transition-all">
+            
+            <div class="absolute -right-16 -top-16 h-48 w-48 bg-slate-50 rounded-full group-hover:bg-primary/5 transition-all duration-700 -z-0"></div>
+            
+            <div class="relative z-10 flex flex-col h-full">
+                <div class="flex justify-between items-start mb-6">
+                    <div class="h-14 w-14 bg-slate-50 rounded-[1.5rem] flex items-center justify-center text-slate-400 group-hover:text-primary transition-all duration-500 shadow-inner">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>
+                    </div>
+                    <div id="grid-status-{{ cam.id }}" class="px-4 py-1.5 text-[9px] font-semibold rounded-full border bg-slate-50 border-slate-100 text-slate-400 transition-all shadow-sm">
+                        ĐANG KHỞI TẠO
+                    </div>
+                </div>
+                
+                <div class="mt-4 flex flex-col flex-1">
+                    <p class="text-[10px] font-semibold tracking-wider text-slate-300 uppercase mb-4 leading-none">Đơn vị xử lý Logic giám sát</p>
+                    <h3 id="status-display" class="text-3xl font-semibold text-slate-800 font-headline leading-none uppercase border-l-[4px] pl-6 border-slate-800 tracking-tight">
+                        {{ cam.name }}
+                    </h3>
+                    <p class="text-[10px] text-slate-400 uppercase font-medium mt-3 tracking-wider opacity-60">{{ cam.group }}</p>
+                </div>
+
+                <div class="mt-auto pt-6 border-t border-slate-50 flex justify-between items-end">
+                    <div class="space-y-2">
+                        <p class="text-[9px] text-slate-400 uppercase font-semibold leading-none tracking-wider">Số người phát hiện</p>
+                        <div class="flex items-baseline gap-1.5">
+                            <p id="grid-count-{{ cam.id }}" class="text-3xl font-semibold text-slate-800 font-headline leading-none">0</p>
+                            <span class="text-[9px] font-medium text-slate-400">NGƯỜI</span>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span id="grid-label-{{ cam.id }}" class="px-4 py-2 bg-success/10 text-success rounded-2xl text-[9px] font-semibold uppercase tracking-widest border border-success/10 shadow-sm animate-pulse">
+                            ĐANG QUÉT
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>

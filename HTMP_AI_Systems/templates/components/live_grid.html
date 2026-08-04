@@ -1,0 +1,91 @@
+<!-- LIVE GRID VIEW: Hiển thị tất cả camera (Tinh giản Sidebar) -->
+<div id="live-grid-view" class="hidden animate-fadeIn fixed inset-0 z-50 bg-[#f8fafc] overflow-hidden m-0 p-0 flex flex-col md:flex-row">
+    
+    <!-- LEFT SIDEBAR: Thống kê lỗi (Header Navigation) -->
+    <div id="live-grid-sidebar" class="w-full md:w-80 lg:w-96 bg-white border-r border-slate-200 flex flex-col h-full overflow-hidden shadow-2xl">
+        
+        <!-- Header Sidebar: Title + Back Button -->
+        <div class="p-6 border-b border-slate-100 bg-white flex items-center justify-between gap-4">
+            <div class="flex flex-col">
+                <h2 class="text-lg font-semibold text-slate-900 uppercase tracking-tight leading-none mb-1">BÁO CÁO <span class="text-primary">LỖI</span></h2>
+                <p class="text-[9px] font-medium text-slate-400 uppercase tracking-widest">Hiệu suất trạm</p>
+            </div>
+            
+            <button onclick="closeLiveGrid()"
+                class="h-10 px-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-600 text-[10px] font-semibold uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 group">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-0.5 transition-transform"><path d="m15 18-6-6 6-6"/></svg>
+                Quay lại
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-hide">
+            <!-- Date Picker -->
+            <div class="bg-slate-50 rounded-3xl p-5 border border-slate-200/60 space-y-3 shadow-sm">
+                <label class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest block">Chọn ngày xem dữ liệu</label>
+                <input type="date" id="live-grid-date-picker" 
+                    class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-900 font-semibold text-xs focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all outline-none"
+                    onchange="updateLiveGridStats()">
+            </div>
+
+            <!-- Machine Ranking (Duy nhất thống kê này theo yêu cầu) -->
+            <div class="space-y-6">
+                <div class="flex flex-col px-2">
+                    <h3 class="text-[11px] font-semibold text-slate-900 uppercase tracking-widest">Xếp hạng máy vi phạm</h3>
+                    <span class="text-[9px] font-medium text-slate-400 uppercase">Top giảm dần</span>
+                </div>
+                <div id="machine-ranking-container" class="space-y-3">
+                    <!-- Data will be injected here -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Footer Info (Optional) -->
+        <div class="p-4 text-center">
+            <span class="text-[8px] font-medium text-slate-300 uppercase tracking-widest">Warden AI Enterprise v4.5</span>
+        </div>
+    </div>
+
+    <!-- RIGHT CONTENT: Camera Grid -->
+    <div id="live-grid-main" class="flex-1 bg-slate-50 relative">
+        <div id="live-grid-container" class="grid grid-cols-1 lg:grid-cols-2 h-full overflow-auto bg-slate-100 gap-px">
+            {% for cam in cameras %}
+            <div class="live-grid-cell relative bg-black cursor-pointer overflow-hidden group border-none"
+                 data-cam-id="{{ cam.id }}" data-cam-name="{{ cam.name }}"
+                 onclick="focusCameraFromGrid(this.dataset.camId, this.dataset.camName)">
+
+                <div class="relative w-full h-full bg-black flex items-center justify-center overflow-hidden">
+                    <img id="grid-feed-{{ cam.id }}" src="" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.05]" alt="Camera {{ cam.id }}" />
+                    <canvas id="grid-canvas-{{ cam.id }}" class="absolute inset-0 w-full h-full pointer-events-none z-10"></canvas>
+
+                    <div class="absolute top-4 left-4 z-20">
+                        <div class="px-3 py-1.5 bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl flex items-center gap-2">
+                            <span id="grid-live-indicator-{{ cam.id }}" class="h-1.5 w-1.5 rounded-full bg-secondary"></span>
+                            <span class="text-[10px] font-semibold text-white uppercase tracking-tight">{{ cam.name }}</span>
+                        </div>
+                    </div>
+
+                    <div class="absolute bottom-4 right-4 z-20">
+                        <span id="grid-live-status-{{ cam.id }}" class="px-3 py-1.5 bg-black/40 backdrop-blur-xl border border-white/10 rounded-full text-[8px] font-semibold text-white uppercase tracking-widest">
+                            ONLINE
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            
+            {% if cameras|length % 2 != 0 %}
+            <div class="bg-slate-100 hidden lg:block"></div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+    #live-grid-container {
+        grid-auto-rows: 1fr;
+    }
+    
+    #live-grid-view {
+        font-family: 'SystemSans', sans-serif;
+    }
+</style>
