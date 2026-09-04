@@ -209,7 +209,7 @@ class AIWorker(threading.Thread):
                     time.sleep(0.01)
                     continue
                 
-                frame_small_ai = cv2.resize(frame, (640, 360))
+                frame_small_ai = cv2.resize(frame, (640,360))
                 last_detections = self.engine.detect_people(frame_small_ai)
                 t_ai_ms = (time.perf_counter() - t_ai_start) * 1000 - t_read_ms
                 last_ai_time = now

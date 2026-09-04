@@ -15,7 +15,15 @@ logger = logging.getLogger("Camera")
 
 class CameraStreamer:
     def __init__(self, url):
-        self.url = url
+        # Tự động ép kiểu sang int nếu url chỉ chứa các chữ số (ví dụ: "0", "1" của USB camera)
+        try:
+            if isinstance(url, str) and url.strip().isdigit():
+                self.url = int(url.strip())
+            else:
+                self.url = url
+        except Exception:
+            self.url = url
+
         self.cap = None
         self.frame = None
         self.ret = False
@@ -33,24 +41,46 @@ class CameraStreamer:
         while self.running:
             loop_start = time.perf_counter()
             if self.cap is None or not self.cap.isOpened():
-                # Tối ưu hóa FFMPEG mạnh tay để giảm lỗi 'error while decoding MB'
-                # threads=1 giúp giảm tải CPU giải mã cực lớn
-                self.cap = cv2.VideoCapture(self.url, cv2.CAP_FFMPEG)
+                # Tự động chọn backend dựa trên loại camera (USB hoặc RTSP/Video File)
+                if isinstance(self.url, int):
+                    # Trên Windows, CAP_DSHOW giúp khởi động và kiểm soát USB camera nhanh hơn nhiều
+                    self.cap = cv2.VideoCapture(self.url, cv2.CAP_DSHOW if os.name == 'nt' else cv2.CAP_ANY)
+                else:
+                    self.cap = cv2.VideoCapture(self.url, cv2.CAP_FFMPEG)
+                
                 if self.cap.isOpened():
                     self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1) # Giảm buffer xuống tối thiểu để tránh lag
-                    self.ret = True
+                    with self.lock:
+                        self.ret = True
                     logger.info(f"✅ Đã kết nối thành công tới Camera: {self.url}")
                 else:
                     logger.error(f"❌ Không thể kết nối tới Camera: {self.url}. Thử lại sau 5s...")
+                    with self.lock:
+                        self.ret = False
+                        self.frame = None
                     time.sleep(5)
                     continue
 
-            ret, frame = self.cap.read()
+            try:
+                ret, frame = self.cap.read()
+            except Exception as e:
+                logger.error(f"💥 Lỗi nghiêm trọng khi đọc từ camera: {e}")
+                ret, frame = False, None
             
             if not ret or frame is None:
-                # Nếu lỗi giải mã, không nên log quá nhiều gây treo console
-                # Chỉ log cảnh báo mỗi 5 giây một lần
-                time.sleep(0.1)
+                logger.warning(f"⚠️ Mất kết nối hoặc lỗi khung hình từ camera: {self.url}. Đang giải phóng và thử kết nối lại...")
+                with self.lock:
+                    self.ret = False
+                    self.frame = None
+                
+                if self.cap is not None:
+                    try:
+                        self.cap.release()
+                    except Exception:
+                        pass
+                    self.cap = None
+                
+                time.sleep(2.0) # Đợi 2 giây trước khi thử kết nối lại
                 continue
 
             # In độ phân giải ngay tại đây
@@ -85,4 +115,7 @@ class CameraStreamer:
     def stop(self):
         self.running = False
         if self.cap:
-            self.cap.release()
+            try:
+                self.cap.release()
+            except Exception:
+                pass

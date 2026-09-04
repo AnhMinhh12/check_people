@@ -15,7 +15,7 @@ STATUS_VIOLATION = "VI PHẠM"
 STATUS_OFFLINE = "MẤT TÍN HIỆU"
 
 # AI Engine defaults
-DEFAULT_PERSISTENCE_FRAMES = 5      # Số frame giữ vết khi mất dấu người (chống nháy)
+DEFAULT_PERSISTENCE_FRAMES = 15      # Số frame giữ vết khi mất dấu người (chống nháy)
 DEFAULT_ROI_WEB_SIZE = (640, 360)    # Kích thước chuẩn ROI trên Web
 DEFAULT_NMS_IOU_THRESHOLD = 0.5      # Ngưỡng IoU cho chống đếm trùng
 DEFAULT_STATUS_BUFFER_SEC = 1.0      # Bộ đệm xác nhận (giây) khi người QUAY LẠI (Chống nhiễu AI)

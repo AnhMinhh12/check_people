@@ -252,13 +252,19 @@ class EventRepository:
         except:
             return False
 
-    def get_recent(self, camera_id: int = None, zone_id: int = None, limit: int = 50) -> list:
+    def get_recent(self, camera_id: int = None, zone_id: int = None, limit: int = 50, page: int = 1, days: int = 15, return_meta: bool = False):
         try:
             with get_session() as session:
                 query = session.query(Event).options(
                     joinedload(Event.camera),
                     joinedload(Event.zone)
                 )
+
+                # Lọc trong khoảng số ngày (mặc định 15 ngày gần nhất)
+                if days and days > 0:
+                    cutoff_date = datetime.now() - timedelta(days=days)
+                    query = query.filter(Event.start_time >= cutoff_date)
+
                 # Chỉ lọc theo Camera nếu KHÔNG chọn Máy cụ thể (để xem lịch sử xuyên suốt các cam khi chọn máy)
                 if camera_id and not zone_id:
                     query = query.filter(Event.camera_id == camera_id)
@@ -271,11 +277,33 @@ class EventRepository:
                         query = query.filter(func.upper(Event.machines_involved).like(search_pattern))
                     else:
                         query = query.filter(Event.zone_id == zone_id)
+
+                total_items = query.count()
                 
-                events = query.order_by(Event.start_time.desc()).limit(limit or DEFAULT_HISTORY_LIMIT).all()
-                return [e.to_dict() for e in events]
+                # Phân trang
+                limit = limit if (limit and limit > 0) else 50
+                page = page if (page and page > 0) else 1
+                offset = (page - 1) * limit
+
+                events = query.order_by(Event.start_time.desc()).offset(offset).limit(limit).all()
+                data = [e.to_dict() for e in events]
+
+                if return_meta:
+                    import math
+                    total_pages = max(1, math.ceil(total_items / limit)) if total_items > 0 else 1
+                    return {
+                        "items": data,
+                        "total": total_items,
+                        "page": page,
+                        "limit": limit,
+                        "total_pages": total_pages,
+                        "days": days
+                    }
+                return data
         except Exception as e:
             logger.error(f"Lỗi lấy lịch sử sự kiện: {e}")
+            if return_meta:
+                return {"items": [], "total": 0, "page": page, "limit": limit, "total_pages": 1, "days": days}
             return []
 
     def get_analytics(self, camera_id: int = None, target_date: str = None, zone_id: int = None) -> dict:

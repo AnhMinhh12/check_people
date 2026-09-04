@@ -4,7 +4,7 @@
         <div class="space-y-3">
             <h2 class="text-3xl font-semibold tracking-tight text-slate-800 uppercase font-headline">TRUY XUẤT <span
                     class="text-primary tracking-tight">HỒ SƠ SỰ CỐ</span></h2>
-            <p class="text-[10px] text-slate-400 font-medium uppercase tracking-[0.2em] opacity-70">Quản lý dữ liệu xác thực vi phạm</p>
+            <p class="text-[10px] text-slate-400 font-medium uppercase tracking-[0.2em] opacity-70">Lịch sử vi phạm trong vòng 15 ngày gần nhất • 50 sự cố / trang</p>
         </div>
         
         <div class="flex items-center gap-4 w-full lg:w-auto">
@@ -97,6 +97,37 @@
 
             <p class="text-sm font-semibold uppercase text-slate-400 tracking-widest leading-none mb-3">Không tìm thấy dữ liệu sự cố</p>
             <p class="text-[10px] text-slate-300 font-medium uppercase tracking-widest">Hệ thống đang hoạt động trong trạng thái an toàn</p>
+        </div>
+
+        <!-- HISTORY PAGINATION BAR -->
+        <div id="history-pagination-container" class="border-t border-slate-100 px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/40">
+            <div class="flex items-center gap-2">
+                <span id="history-page-info" class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                    Đang tải dữ liệu...
+                </span>
+                <span class="text-[10px] px-2.5 py-1 rounded-full bg-primary/10 text-primary font-bold tracking-tight">
+                    15 ngày qua
+                </span>
+            </div>
+
+            <div class="flex items-center gap-2" id="history-pagination-controls">
+                <button id="history-prev-btn" onclick="changeHistoryPage(-1)"
+                    class="h-10 px-4 rounded-xl border border-slate-200 bg-white text-slate-600 text-[11px] font-semibold uppercase shadow-sm hover:border-primary/40 hover:text-primary transition-all disabled:opacity-40 disabled:pointer-events-none flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                    <span>Trước</span>
+                </button>
+
+                <!-- Dynamic Page Numbers List -->
+                <div id="history-page-numbers" class="flex items-center gap-1">
+                    <!-- Page buttons rendered by JS -->
+                </div>
+
+                <button id="history-next-btn" onclick="changeHistoryPage(1)"
+                    class="h-10 px-4 rounded-xl border border-slate-200 bg-white text-slate-600 text-[11px] font-semibold uppercase shadow-sm hover:border-primary/40 hover:text-primary transition-all disabled:opacity-40 disabled:pointer-events-none flex items-center gap-2">
+                    <span>Sau</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
+            </div>
         </div>
     </div>
 </div>

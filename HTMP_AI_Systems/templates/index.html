@@ -448,22 +448,43 @@
         }
     }
 
-    /** HISTORY HANDLER */
-    async function loadHistory() {
+    /** HISTORY HANDLER WITH PAGINATION (50 ITEMS / PAGE, 15 DAYS) */
+    let currentHistoryPage = 1;
+    let totalHistoryPages = 1;
+    const HISTORY_ITEMS_PER_PAGE = 50;
+    const HISTORY_DAYS_WINDOW = 15;
+
+    async function loadHistory(page = 1) {
+        currentHistoryPage = page;
         const zoneId = document.getElementById('history-zone-select').value;
         const historyBody = document.getElementById('history-table');
         const emptyState = document.getElementById('history-empty');
+        const pageInfo = document.getElementById('history-page-info');
+        const paginationContainer = document.getElementById('history-pagination-container');
+        const prevBtn = document.getElementById('history-prev-btn');
+        const nextBtn = document.getElementById('history-next-btn');
+        const pageNumbersContainer = document.getElementById('history-page-numbers');
+
         try {
-            const response = await fetch(`/api/history?zone_id=${zoneId}`);
-            const violations = await response.json();
+            const url = `/api/history?zone_id=${encodeURIComponent(zoneId)}&page=${currentHistoryPage}&limit=${HISTORY_ITEMS_PER_PAGE}&days=${HISTORY_DAYS_WINDOW}`;
+            const response = await fetch(url);
+            const resData = await response.json();
+
+            // Tương thích cả kiểu trả về object phân trang hoặc mảng cũ
+            const violations = Array.isArray(resData) ? resData : (resData.items || []);
+            const total = (resData && typeof resData.total === 'number') ? resData.total : violations.length;
+            totalHistoryPages = (resData && typeof resData.total_pages === 'number') ? resData.total_pages : Math.max(1, Math.ceil(total / HISTORY_ITEMS_PER_PAGE));
 
             if (violations.length === 0) {
                 historyBody.innerHTML = '';
                 emptyState.classList.remove('hidden');
+                if (paginationContainer) paginationContainer.classList.add('hidden');
                 return;
             }
 
             emptyState.classList.add('hidden');
+            if (paginationContainer) paginationContainer.classList.remove('hidden');
+
             historyBody.innerHTML = violations.map(v => `
                     <tr class="hover:bg-slate-50 transition-colors group">
                         <td class="px-12 py-8">
@@ -492,7 +513,83 @@
                         </td>
                     </tr>
                 `).join('');
-        } catch (err) { console.error("History fetch error:", err); }
+
+            // Cập nhật thông tin số trang & hiển thị
+            const startIdx = (currentHistoryPage - 1) * HISTORY_ITEMS_PER_PAGE + 1;
+            const endIdx = Math.min(startIdx + violations.length - 1, total);
+            if (pageInfo) {
+                pageInfo.innerHTML = `Hiển thị <span class="font-bold text-slate-800">${startIdx}–${endIdx}</span> trong tổng số <span class="font-bold text-slate-800">${total}</span> sự cố (Trang ${currentHistoryPage}/${totalHistoryPages})`;
+            }
+
+            // Nút Trước / Sau
+            if (prevBtn) prevBtn.disabled = currentHistoryPage <= 1;
+            if (nextBtn) nextBtn.disabled = currentHistoryPage >= totalHistoryPages;
+
+            // Render các nút số trang
+            if (pageNumbersContainer) {
+                renderHistoryPageNumbers(pageNumbersContainer);
+            }
+        } catch (err) {
+            console.error("History fetch error:", err);
+        }
+    }
+
+    function renderHistoryPageNumbers(container) {
+        container.innerHTML = '';
+        if (totalHistoryPages <= 1) return;
+
+        // Xác định dải trang cần hiển thị (ví dụ tối đa 5 nút)
+        let startPage = Math.max(1, currentHistoryPage - 2);
+        let endPage = Math.min(totalHistoryPages, startPage + 4);
+        if (endPage - startPage < 4) {
+            startPage = Math.max(1, endPage - 4);
+        }
+
+        // Nút trang 1 nếu xa
+        if (startPage > 1) {
+            container.appendChild(createPageBtn(1));
+            if (startPage > 2) {
+                const dots = document.createElement('span');
+                dots.className = 'px-2 text-slate-400 text-xs font-bold';
+                dots.innerText = '...';
+                container.appendChild(dots);
+            }
+        }
+
+        for (let p = startPage; p <= endPage; p++) {
+            container.appendChild(createPageBtn(p, p === currentHistoryPage));
+        }
+
+        // Nút trang cuối nếu xa
+        if (endPage < totalHistoryPages) {
+            if (endPage < totalHistoryPages - 1) {
+                const dots = document.createElement('span');
+                dots.className = 'px-2 text-slate-400 text-xs font-bold';
+                dots.innerText = '...';
+                container.appendChild(dots);
+            }
+            container.appendChild(createPageBtn(totalHistoryPages));
+        }
+    }
+
+    function createPageBtn(pageNumber, isActive = false) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.innerText = pageNumber;
+        btn.onclick = () => loadHistory(pageNumber);
+        if (isActive) {
+            btn.className = 'h-9 w-9 rounded-xl bg-primary text-white text-xs font-bold shadow-md shadow-primary/20 pointer-events-none';
+        } else {
+            btn.className = 'h-9 w-9 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-primary hover:border-primary/40 text-xs font-semibold transition-all shadow-sm';
+        }
+        return btn;
+    }
+
+    function changeHistoryPage(delta) {
+        const targetPage = currentHistoryPage + delta;
+        if (targetPage >= 1 && targetPage <= totalHistoryPages) {
+            loadHistory(targetPage);
+        }
     }
 
     function openEvidenceModal(imageUrl) {

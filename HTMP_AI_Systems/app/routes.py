@@ -22,8 +22,19 @@ _zone_repo = ZoneRepository()
 def get_history():
     camera_id = request.args.get('camera_id', type=int)
     zone_id = request.args.get('zone_id', type=int)
-    history = _event_repo.get_recent(camera_id=camera_id, zone_id=zone_id, limit=150)
-    return jsonify(history)
+    page = request.args.get('page', default=1, type=int)
+    limit = request.args.get('limit', default=50, type=int)
+    days = request.args.get('days', default=15, type=int)
+
+    history_data = _event_repo.get_recent(
+        camera_id=camera_id,
+        zone_id=zone_id,
+        limit=limit,
+        page=page,
+        days=days,
+        return_meta=True
+    )
+    return jsonify(history_data)
 
 
 @api_bp.route('/violations/<path:filename>')
