@@ -215,19 +215,30 @@ class AIEngine:
                     best_zone = None
                     max_ratio = 0.0
 
+                    # Tọa độ các điểm đặc trưng của người (chân người & tâm người)
+                    foot_x = int(np.clip((x1 + x2) // 2, 0, w - 1))
+                    foot_y = int(np.clip(y2 - 2, 0, h - 1))
+                    center_x = int(np.clip((x1 + x2) // 2, 0, w - 1))
+                    center_y = int(np.clip((y1 + y2) // 2, 0, h - 1))
+
                     for zone in self.roi_zones:
                         if "_mask" in zone:
+                            z_mask = zone["_mask"]
                             # Lấy mask của vùng này trong phạm vi box người
-                            z_mask_crop = zone["_mask"][y1:y2, x1:x2]
+                            z_mask_crop = z_mask[y1:y2, x1:x2]
                             overlap_px = np.count_nonzero(z_mask_crop == 255)
                             ratio = overlap_px / person_area
+
+                            # Ưu tiên cộng thêm nếu chân người hoặc tâm người nằm gọn trong vùng ROI
+                            has_keypoint_inside = (z_mask[foot_y, foot_x] == 255) or (z_mask[center_y, center_x] == 255)
+                            effective_ratio = ratio + (0.15 if has_keypoint_inside else 0.0)
                             
-                            if ratio > max_ratio:
-                                max_ratio = ratio
+                            if effective_ratio > max_ratio:
+                                max_ratio = effective_ratio
                                 best_zone = zone["name"]
 
-                    # Ngưỡng tối thiểu 5%: Đảm bảo người thực sự đứng tại máy (không phải đi ngang qua)
-                    if best_zone and max_ratio > 0.05:
+                    # Ngưỡng tối thiểu linh hoạt: > 2% hoặc có chân/tâm người nằm trong vùng
+                    if best_zone and max_ratio > 0.02:
                         is_safe = True
                         matched_zones.append(best_zone)
 

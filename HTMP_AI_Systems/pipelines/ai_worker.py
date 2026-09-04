@@ -16,7 +16,7 @@ from datetime import datetime, timezone, timedelta
 from core.constants import (
     STATUS_WAITING, STATUS_SAFE, STATUS_LEFT, STATUS_VIOLATION, 
     DASHBOARD_JPEG_QUALITY, DASHBOARD_EMIT_HZ, DEFAULT_STATUS_BUFFER_SEC,
-    GRID_JPEG_QUALITY, GRID_FRAME_SIZE, GRID_EMIT_HZ
+    DEFAULT_ABSENT_BUFFER_SEC, GRID_JPEG_QUALITY, GRID_FRAME_SIZE, GRID_EMIT_HZ
 )
 from db.models import Zone
 from pipelines.camera_stream import CameraStreamer
@@ -242,7 +242,8 @@ class AIWorker(threading.Thread):
                     if not is_occupied:
                         absent_grace_timers[z_name] += time_delta
                         
-                        if absent_grace_timers[z_name] >= 2.0:
+                        # Bộ đệm xác nhận vắng mặt 10 giây (chống miss/flicker AI khi cúi người hoặc che khuất)
+                        if absent_grace_timers[z_name] >= DEFAULT_ABSENT_BUFFER_SEC:
                             occupied_confirm_timers[z_name] = 0.0
                             zone_timers[z_name] += time_delta
                             real_missing_time = zone_timers[z_name]
